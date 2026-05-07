@@ -31,14 +31,14 @@ PersonAI is the web frontend for an AI personal trainer. It pairs a live camera-
 
 - [Bun](https://bun.sh/) ≥ 1.0 (npm/pnpm/yarn also work, but `bun.lock` is the source of truth)
 - Node.js ≥ 20 (only required if you opt out of Bun)
-- A running [PersonAI backend](https://github.com/) for live pose analysis and REST data (optional — the app ships with mock data)
+- A running [PersonAI backend](https://github.com/YinCheng0106/personai-api) for live pose analysis and REST data (optional — the app ships with mock data)
 - PostgreSQL (only required when you wire up `better-auth`)
 
 ### Installation
 
 ```bash
 # Clone
-git clone https://github.com/<your-org>/personai-web.git
+git clone https://github.com/YinCheng0106/personai-web.git
 cd personai-web
 
 # Install dependencies
