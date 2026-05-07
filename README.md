@@ -1,5 +1,7 @@
 # PersonAI
 
+**English** | [繁體中文](./README.zh-TW.md)
+
 > An AI-powered personal fitness companion — real-time pose analysis, workout tracking, and body composition insights in one streamlined web app.
 
 PersonAI is the web frontend for an AI personal trainer. It pairs a live camera-based pose pipeline with a workout history dashboard and body-composition tools, giving users actionable feedback on form, reps, and progress without leaving the browser.
