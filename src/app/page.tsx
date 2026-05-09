@@ -15,6 +15,7 @@ import { WeeklyChart } from "@/components/dashboard/weekly-chart"
 import { GoalProgressCard } from "@/components/dashboard/goal-progress"
 import { TodayWorkoutList } from "@/components/dashboard/today-workout-list"
 import { PostureQuality } from "@/components/dashboard/posture-quality"
+import { RequireAuth } from "@/components/auth/require-auth"
 import {
   MOCK_DAILY,
   MOCK_GOALS,
@@ -56,6 +57,10 @@ export default function DashboardPage() {
         </Button>
       }
     >
+      <RequireAuth
+        title="登入後檢視今日訓練"
+        description="今日進度、目標與訓練紀錄屬於個人資料，請先登入或註冊帳號。"
+      >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="今日次數"
@@ -98,6 +103,7 @@ export default function DashboardPage() {
         <TodayWorkoutList records={todayWorkouts} />
         <GoalProgressCard goals={MOCK_GOALS} />
       </div>
+      </RequireAuth>
     </PageContainer>
   )
 }

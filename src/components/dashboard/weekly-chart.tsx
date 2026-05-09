@@ -25,7 +25,7 @@ export function WeeklyChart({ data }: Props) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex h-44 items-end gap-2 pt-2">
+        <div className="flex h-44 gap-2 pt-2">
           {data.map((day) => {
             const date = new Date(day.date)
             const pct = (day.totalReps / max) * 100
@@ -34,10 +34,10 @@ export function WeeklyChart({ data }: Props) {
                 key={day.date}
                 className="flex flex-1 flex-col items-center gap-2"
               >
-                <div className="relative flex h-full w-full items-end">
+                <div className="relative flex w-full flex-1 items-end">
                   <div
                     className="w-full rounded-xl bg-linear-to-t from-primary/70 to-primary transition-[height] duration-500"
-                    style={{ height: `${pct}%` }}
+                    style={{ height: `${Math.max(pct, 4)}%` }}
                   />
                 </div>
                 <div className="text-[10px] font-medium tabular-nums text-muted-foreground">

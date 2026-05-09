@@ -32,20 +32,22 @@ export function Heatmap({ cells }: Props) {
         </div>
       </CardHeader>
       <CardContent>
-        <div
-          className="grid grid-flow-col gap-1.5 max-w-full overflow-x-auto"
-          style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}
-        >
-          {cells.map((cell, i) => (
-            <div
-              key={cell.date + i}
-              title={`${cell.date} · 強度 ${cell.intensity}`}
-              className={cn(
-                "h-12 w-12 rounded-sm transition-transform hover:scale-105",
-                TONE[Math.min(cell.intensity, 4)],
-              )}
-            />
-          ))}
+        <div className="-mx-1 overflow-x-auto px-1">
+          <div
+            className="grid grid-flow-col gap-1"
+            style={{ gridTemplateRows: "repeat(7, minmax(0, 1fr))" }}
+          >
+            {cells.map((cell, i) => (
+              <div
+                key={cell.date + i}
+                title={`${cell.date} · 強度 ${cell.intensity}`}
+                className={cn(
+                  "h-6 w-6 rounded-xs transition-transform hover:scale-110 sm:h-10 sm:w-10 md:h-12 md:w-12",
+                  TONE[Math.min(cell.intensity, 4)],
+                )}
+              />
+            ))}
+          </div>
         </div>
         <p className="mt-3 text-[11px] text-muted-foreground">
           過去 {weeks} 週的訓練分布。
