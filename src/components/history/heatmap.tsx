@@ -42,7 +42,7 @@ export function Heatmap({ cells }: Props) {
                 key={cell.date + i}
                 title={`${cell.date} · 強度 ${cell.intensity}`}
                 className={cn(
-                  "h-6 w-6 rounded-xs transition-transform hover:scale-110 sm:h-10 sm:w-10 md:h-12 md:w-12",
+                  "h-6 w-6 rounded-xs sm:rounded-sm transition-transform hover:scale-110 sm:h-10 sm:w-10 md:h-12 md:w-12",
                   TONE[Math.min(cell.intensity, 4)],
                 )}
               />
