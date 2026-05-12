@@ -22,6 +22,37 @@ import { Label } from "@/components/ui/label"
 import { authClient, useSession } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+function validateName(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return "請輸入顯示名稱。"
+  if (trimmed.length < 2) return "顯示名稱至少需要 2 個字元。"
+  if (trimmed.length > 50) return "顯示名稱不可超過 50 個字元。"
+  return null
+}
+
+function validateEmail(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return "請輸入 Email。"
+  if (!EMAIL_RE.test(trimmed)) return "Email 格式不正確，請確認後重新輸入。"
+  return null
+}
+
+function validatePassword(value: string): string | null {
+  if (!value) return "請輸入密碼。"
+  if (value.length < 8) return "密碼至少需要 8 個字元。"
+  if (!/[A-Za-z]/.test(value)) return "密碼需包含至少一個英文字母。"
+  if (!/[0-9]/.test(value)) return "密碼需包含至少一個數字。"
+  return null
+}
+
+function validateConfirm(password: string, confirm: string): string | null {
+  if (!confirm) return "請再次輸入密碼。"
+  if (confirm !== password) return "兩次輸入的密碼不一致。"
+  return null
+}
+
 function passwordStrength(pw: string) {
   let score = 0
   if (pw.length >= 8) score++
@@ -40,6 +71,8 @@ const STRENGTH_COLOR = [
   "bg-success/80",
 ]
 
+type FieldName = "name" | "email" | "password" | "confirm"
+
 function RegisterForm() {
   const router = useRouter()
   const search = useSearchParams()
@@ -53,9 +86,21 @@ function RegisterForm() {
   const [showPassword, setShowPassword] = React.useState(false)
   const [submitting, setSubmitting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [touched, setTouched] = React.useState<Record<FieldName, boolean>>({
+    name: false,
+    email: false,
+    password: false,
+    confirm: false,
+  })
 
+  const errors: Record<FieldName, string | null> = {
+    name: validateName(name),
+    email: validateEmail(email),
+    password: validatePassword(password),
+    confirm: validateConfirm(password, confirm),
+  }
+  const hasAnyError = Object.values(errors).some((e) => e !== null)
   const strength = passwordStrength(password)
-  const passwordMismatch = confirm.length > 0 && confirm !== password
 
   React.useEffect(() => {
     if (!session.isPending && session.data) {
@@ -63,19 +108,25 @@ function RegisterForm() {
     }
   }, [session.data, session.isPending, redirectTo, router])
 
+  function markTouched(field: FieldName) {
+    setTouched((prev) => (prev[field] ? prev : { ...prev, [field]: true }))
+  }
+
+  function shownError(field: FieldName): string | null {
+    return touched[field] ? errors[field] : null
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
-    if (passwordMismatch) {
-      setError("兩次輸入的密碼不一致。")
-      return
-    }
-    if (password.length < 8) {
-      setError("密碼至少需要 8 個字元。")
-      return
-    }
+    setTouched({ name: true, email: true, password: true, confirm: true })
+    if (hasAnyError) return
     setSubmitting(true)
-    const result = await authClient.signUp.email({ name, email, password })
+    const result = await authClient.signUp.email({
+      name: name.trim(),
+      email: email.trim(),
+      password,
+    })
     setSubmitting(false)
     if (result.error) {
       setError(result.error.message)
@@ -83,6 +134,12 @@ function RegisterForm() {
     }
     router.replace(redirectTo)
   }
+
+  const nameError = shownError("name")
+  const emailError = shownError("email")
+  const passwordError = shownError("password")
+  const confirmError = shownError("confirm")
+  const confirmValid = confirm.length > 0 && !errors.confirm
 
   return (
     <AuthCard
@@ -115,13 +172,21 @@ function RegisterForm() {
               type="text"
               autoComplete="name"
               required
-              placeholder="例如：陳小美"
+              placeholder="例如：王小明"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={() => markTouched("name")}
               className="pl-9"
               disabled={submitting}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? "name-error" : undefined}
             />
           </div>
+          {nameError ? (
+            <p id="name-error" className="text-xs text-destructive">
+              {nameError}
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
@@ -141,10 +206,18 @@ function RegisterForm() {
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => markTouched("email")}
               className="pl-9"
               disabled={submitting}
+              aria-invalid={emailError ? true : undefined}
+              aria-describedby={emailError ? "email-error" : undefined}
             />
           </div>
+          {emailError ? (
+            <p id="email-error" className="text-xs text-destructive">
+              {emailError}
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
@@ -162,11 +235,16 @@ function RegisterForm() {
               autoComplete="new-password"
               required
               minLength={8}
-              placeholder="至少 8 個字元"
+              placeholder="至少 8 個字元，含英數字"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => markTouched("password")}
               className="pl-9 pr-10"
               disabled={submitting}
+              aria-invalid={passwordError ? true : undefined}
+              aria-describedby={
+                passwordError ? "password-error" : "password-hint"
+              }
             />
             <button
               type="button"
@@ -198,6 +276,15 @@ function RegisterForm() {
               {STRENGTH_LABEL[strength]}
             </span>
           </div>
+          {passwordError ? (
+            <p id="password-error" className="text-xs text-destructive">
+              {passwordError}
+            </p>
+          ) : (
+            <p id="password-hint" className="text-xs text-muted-foreground">
+              密碼至少 8 個字元，且需包含英文字母與數字。
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -217,11 +304,13 @@ function RegisterForm() {
               placeholder="再次輸入相同密碼"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
+              onBlur={() => markTouched("confirm")}
               className="pl-9 pr-9"
               disabled={submitting}
-              aria-invalid={passwordMismatch || undefined}
+              aria-invalid={confirmError ? true : undefined}
+              aria-describedby={confirmError ? "confirm-error" : undefined}
             />
-            {confirm.length > 0 && !passwordMismatch ? (
+            {confirmValid ? (
               <HugeiconsIcon
                 icon={CheckmarkCircle02Icon}
                 size={16}
@@ -230,8 +319,10 @@ function RegisterForm() {
               />
             ) : null}
           </div>
-          {passwordMismatch ? (
-            <p className="text-xs text-destructive">兩次輸入的密碼不一致。</p>
+          {confirmError ? (
+            <p id="confirm-error" className="text-xs text-destructive">
+              {confirmError}
+            </p>
           ) : null}
         </div>
 
@@ -251,7 +342,7 @@ function RegisterForm() {
           type="submit"
           size="lg"
           className="w-full"
-          disabled={submitting || passwordMismatch || password.length < 8}
+          disabled={submitting}
         >
           {submitting ? (
             <HugeiconsIcon

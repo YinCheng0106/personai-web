@@ -36,9 +36,9 @@ function getInitials(name: string) {
   if (!trimmed) return "?"
   const parts = trimmed.split(/\s+/)
   if (parts.length >= 2) {
-    return (parts[0][0] + parts[1][0]).toUpperCase()
+    return (parts[0][0]).toUpperCase()
   }
-  return trimmed.slice(0, 2).toUpperCase()
+  return trimmed.slice(0, 1).toUpperCase()
 }
 
 function UserMenu() {
@@ -103,7 +103,7 @@ function UserMenu() {
         <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">
           {getInitials(user.name)}
         </span>
-        <span className="hidden max-w-[8rem] truncate sm:inline">{user.name}</span>
+        <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
       </button>
       {open ? (
         <div

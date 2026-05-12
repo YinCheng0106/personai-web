@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { EXERCISES } from "@/lib/constants"
 import type { ExerciseType } from "@/types/pose"
 import { cn } from "@/lib/utils"
@@ -18,7 +17,6 @@ type Props = {
 
 export function CalorieEstimator({ defaultWeightKg }: Props) {
   const [exercise, setExercise] = useState<ExerciseType>("squat")
-  const [reps, setReps] = useState(30)
   const [duration, setDuration] = useState(8)
   const [weight, setWeight] = useState(defaultWeightKg)
 
@@ -28,11 +26,11 @@ export function CalorieEstimator({ defaultWeightKg }: Props) {
   }, [exercise, weight, duration])
 
   return (
-    <Card>
+    <Card className="flex h-full flex-col">
       <CardHeader>
         <CardTitle>卡路里估算器</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="flex flex-1 flex-col space-y-4">
         <div className="grid grid-cols-2 gap-2">
           {EXERCISES.map((ex) => {
             const active = ex.value === exercise
@@ -53,18 +51,14 @@ export function CalorieEstimator({ defaultWeightKg }: Props) {
           })}
         </div>
         <Field label="體重 (kg)" value={weight} onChange={setWeight} step={0.5} />
-        <Field label="次數" value={reps} onChange={setReps} step={1} />
         <Field label="時長 (分鐘)" value={duration} onChange={setDuration} step={1} />
-        <div className="rounded-xl bg-muted/60 p-4 text-center">
+        <div className="flex flex-1 flex-col items-center justify-center rounded-xl bg-muted/60 p-4 text-center">
           <div className="text-xs text-muted-foreground">預估燃燒</div>
-          <div className="text-3xl font-semibold tabular-nums tracking-tight">
+          <div className="text-4xl font-semibold tabular-nums tracking-tight">
             {calories.toFixed(1)}
             <span className="ml-1 text-sm font-normal text-muted-foreground">kcal</span>
           </div>
         </div>
-        <Button variant="outline" className="w-full" onClick={() => setReps((r) => r + 5)}>
-          再加 5 下試試
-        </Button>
       </CardContent>
     </Card>
   )
