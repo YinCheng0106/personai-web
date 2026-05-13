@@ -16,6 +16,14 @@ import {
 } from "@hugeicons/core-free-icons"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { authClient, useSession } from "@/lib/auth-client"
 
 type NavItem = {
@@ -44,26 +52,6 @@ function getInitials(name: string) {
 function UserMenu() {
   const session = useSession()
   const router = useRouter()
-  const [open, setOpen] = React.useState(false)
-  const menuRef = React.useRef<HTMLDivElement>(null)
-
-  React.useEffect(() => {
-    if (!open) return
-    function onClick(e: MouseEvent) {
-      if (!menuRef.current?.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false)
-    }
-    document.addEventListener("mousedown", onClick)
-    document.addEventListener("keydown", onKey)
-    return () => {
-      document.removeEventListener("mousedown", onClick)
-      document.removeEventListener("keydown", onKey)
-    }
-  }, [open])
 
   if (session.isPending) {
     return <div className="h-8 w-20 animate-pulse rounded-full bg-muted" />
@@ -92,44 +80,36 @@ function UserMenu() {
   const user = session.data.user
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="flex h-8 items-center gap-2 rounded-full border border-border/60 bg-background pl-1 pr-2.5 text-xs font-medium transition-colors hover:bg-muted"
-      >
-        <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">
-          {getInitials(user.name)}
-        </span>
-        <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
-      </button>
-      {open ? (
-        <div
-          role="menu"
-          className="absolute right-0 top-10 z-50 w-56 overflow-hidden rounded-2xl border border-border/70 bg-popover text-popover-foreground shadow-[0_8px_32px_-12px_rgba(0,0,0,0.18)]"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="flex h-8 items-center gap-2 rounded-full border border-border/60 bg-background pl-1 pr-1 sm:pr-2.5 text-xs font-medium transition-colors hover:bg-muted"
         >
-          <div className="border-b border-border/60 p-3">
-            <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-          </div>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={async () => {
-              setOpen(false)
-              await authClient.signOut()
-              router.replace("/")
-            }}
-            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <HugeiconsIcon icon={Logout01Icon} size={16} strokeWidth={2} />
-            登出
-          </button>
-        </div>
-      ) : null}
-    </div>
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+            {getInitials(user.name)}
+          </span>
+          <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel className="px-3 py-2">
+          <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
+          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={async (e) => {
+            e.preventDefault()
+            await authClient.signOut()
+            router.replace("/")
+          }}
+        >
+          <HugeiconsIcon icon={Logout01Icon} size={16} strokeWidth={2} />
+          登出
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
