@@ -49,6 +49,7 @@ const ACCOUNTS_KEY = "personai.auth.accounts"
 type StoredAccount = {
   id: string
   email: string
+  image: string,
   name: string
   passwordHash: string
 }
@@ -57,6 +58,7 @@ const SEED_ACCOUNTS: StoredAccount[] = [
   {
     id: "user_demo_yc",
     email: "demo@personai.app",
+    image: "",
     name: "示範使用者",
     passwordHash: hashPassword("demo1234"),
   },
@@ -127,6 +129,7 @@ function makeSession(account: StoredAccount): Session {
   return {
     user: {
       id: account.id,
+      image: account.image,
       email: account.email,
       name: account.name,
     },
@@ -208,6 +211,7 @@ async function signUpEmail(
   const account: StoredAccount = {
     id: `user_${Math.random().toString(36).slice(2, 10)}`,
     email,
+    image: "",
     name: input.name.trim() || email.split("@")[0],
     passwordHash: hashPassword(input.password),
   }
