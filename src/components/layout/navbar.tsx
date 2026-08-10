@@ -4,17 +4,18 @@ import * as React from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
-import { HugeiconsIcon } from "@hugeicons/react"
 import {
-  DashboardSquare01Icon,
-  WorkoutWarmUpIcon,
-  Calendar03Icon,
-  BodyPartLegIcon,
-  Login03Icon,
-  Logout01Icon,
-  UserAdd01Icon,
-} from "@hugeicons/core-free-icons"
+  Settings,
+  LayoutGrid,
+  CalendarDays,
+  Dumbbell,
+  BicepsFlexed,
+  LogIn,
+  LogOut,
+  UserPlus,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -29,14 +30,14 @@ import { authClient, useSession } from "@/lib/auth-client"
 type NavItem = {
   href: string
   label: string
-  icon: typeof DashboardSquare01Icon
+  icon: typeof LayoutGrid
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "總覽", icon: DashboardSquare01Icon },
-  { href: "/analyze", label: "即時分析", icon: WorkoutWarmUpIcon },
-  { href: "/history", label: "訓練紀錄", icon: Calendar03Icon },
-  { href: "/inbody", label: "身體組成", icon: BodyPartLegIcon },
+  { href: "/", label: "總覽", icon: LayoutGrid },
+  { href: "/analyze", label: "即時分析", icon: Dumbbell },
+  { href: "/history", label: "訓練紀錄", icon: CalendarDays },
+  { href: "/inbody", label: "身體組成", icon: BicepsFlexed },
 ]
 
 function getInitials(name: string) {
@@ -62,13 +63,13 @@ function UserMenu() {
       <div className="flex items-center gap-1.5">
         <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
           <Link href="/login">
-            <HugeiconsIcon icon={Login03Icon} size={14} strokeWidth={2} />
+            <LogIn size={14} />
             登入
           </Link>
         </Button>
         <Button asChild size="sm">
           <Link href="/register">
-            <HugeiconsIcon icon={UserAdd01Icon} size={14} strokeWidth={2} />
+            <UserPlus size={14} />
             <span className="hidden sm:inline">註冊</span>
             <span className="sm:hidden">登入 / 註冊</span>
           </Link>
@@ -86,18 +87,33 @@ function UserMenu() {
           type="button"
           className="flex h-8 items-center gap-2 rounded-full border border-border/60 bg-background pl-1 pr-1 sm:pr-2.5 text-xs font-medium transition-colors hover:bg-muted"
         >
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
-            {getInitials(user.name)}
-          </span>
+          <Avatar className="size-6">
+            <AvatarImage src={user.image} alt={user.name} />
+            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+          </Avatar>
           <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="px-3 py-2">
-          <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
-          <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+      <DropdownMenuContent align="end" className="w-56 rounded-xl">
+        <DropdownMenuLabel className="px-3 py-2 flex items-center gap-2">
+          <Avatar className="size-6">
+            <AvatarImage src={user.image} alt={user.name} />
+            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
+            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+          </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={async (e) => {
+            e.preventDefault()
+          }}
+        >
+          <Settings size={16} />
+          設定
+        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={async (e) => {
             e.preventDefault()
@@ -105,7 +121,7 @@ function UserMenu() {
             router.replace("/")
           }}
         >
-          <HugeiconsIcon icon={Logout01Icon} size={16} strokeWidth={2} />
+          <LogOut size={16} />
           登出
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -118,7 +134,7 @@ export function Navbar() {
   const isAuthRoute = pathname === "/login" || pathname === "/register"
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-xl select-none">
       <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-6 px-4 md:px-8">
         <Link href="/" className="flex items-center gap-2">
           <Image src="/./logo.png" alt="PersonAI" width={36} height={36} />
@@ -140,7 +156,7 @@ export function Navbar() {
                       : "text-muted-foreground hover:bg-muted hover:text-foreground",
                   )}
                 >
-                  <HugeiconsIcon icon={item.icon} size={16} strokeWidth={2} />
+                  <item.icon size={16} />
                   {item.label}
                 </Link>
               )
@@ -169,7 +185,7 @@ export function Navbar() {
                     : "bg-muted text-muted-foreground",
                 )}
               >
-                <HugeiconsIcon icon={item.icon} size={14} strokeWidth={2} />
+                <item.icon size={14} />
                 {item.label}
               </Link>
             )

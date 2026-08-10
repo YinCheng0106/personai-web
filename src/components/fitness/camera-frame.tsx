@@ -3,13 +3,13 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react"
 import { Camera } from "react-camera-pro"
 import type { CameraType } from "react-camera-pro"
-import { HugeiconsIcon } from "@hugeicons/react"
+
 import {
-  CameraOffIcon,
-  Camera01Icon,
-  AlertCircleIcon,
-  Loading03Icon,
-} from "@hugeicons/core-free-icons"
+  CameraOff,
+  Camera as CameraIcon,
+  CircleAlert,
+  Loader
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -103,7 +103,7 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
       if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
         setStatus("denied")
         setErrorMessage(
-          "瀏覽器已拒絕相機存取。請點選網址列旁的鎖頭圖示，將相機權限改為「允許」後重試。",
+          "瀏覽器已拒絕相機存取。請點選網址列旁的鎖頭圖示\n將相機權限改為「允許」後重試。",
         )
       } else if (
         e.name === "NotFoundError" ||
@@ -150,7 +150,7 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
         <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-zinc-900 via-zinc-800 to-zinc-900 text-zinc-300">
           <div className="flex flex-col items-center gap-3 px-6 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10">
-              <HugeiconsIcon icon={CameraOffIcon} size={22} strokeWidth={1.6} />
+              <CameraOff size={22} strokeWidth={1.6} />
             </span>
             <p className="text-sm font-medium">相機尚未啟動</p>
             <p className="max-w-xs text-xs text-zinc-400">
@@ -221,11 +221,7 @@ function PermissionPrompt({ status, message, onAllow }: PromptProps) {
             isError ? "bg-destructive/20 text-destructive" : "bg-white/10 text-white",
           )}
         >
-          <HugeiconsIcon
-            icon={isError ? AlertCircleIcon : Camera01Icon}
-            size={26}
-            strokeWidth={1.6}
-          />
+          {isError ? <CircleAlert size={26} strokeWidth={1.6} /> : <CameraIcon size={26} strokeWidth={1.6} />}
         </span>
         <div className="space-y-1.5">
           <p className="text-base font-medium text-white">{title}</p>
@@ -240,14 +236,9 @@ function PermissionPrompt({ status, message, onAllow }: PromptProps) {
             className="bg-white text-zinc-900 hover:bg-white/90"
           >
             {checking ? (
-              <HugeiconsIcon
-                icon={Loading03Icon}
-                size={16}
-                strokeWidth={2}
-                className="animate-spin"
-              />
+              <Loader size={16} strokeWidth={2} className="animate-spin" />
             ) : (
-              <HugeiconsIcon icon={Camera01Icon} size={16} strokeWidth={2} />
+              <CameraIcon size={16} strokeWidth={2} />
             )}
             {checking
               ? "授權中…"

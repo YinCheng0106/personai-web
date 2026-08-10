@@ -27,7 +27,7 @@ export default function HistoryPage() {
       >
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="累積場次" value={totalSessions} unit="場" />
-          <MetricCard label="累積下數" value={totalReps} unit="下" />
+          <MetricCard label="累積次數" value={totalReps} unit="下" />
           <MetricCard label="累積卡路里" value={totalCalories} unit="kcal" />
           <MetricCard label="活躍天數" value={activeDays} unit="天" />
         </div>

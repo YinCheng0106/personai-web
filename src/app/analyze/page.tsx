@@ -15,7 +15,7 @@ import { AngleDisplay } from "@/components/fitness/angle-display"
 import { ErrorList } from "@/components/fitness/error-list"
 import { CalorieDisplay } from "@/components/fitness/calorie-display"
 import { useMockPose } from "@/hooks/use-mock-pose"
-import { EXERCISE_LABEL, type ExerciseType } from "@/types/pose"
+import type { ExerciseType } from "@/types/pose"
 
 const HIGHLIGHTS: Record<ExerciseType, Array<"leftKnee" | "rightKnee" | "leftHip" | "rightHip" | "leftElbow" | "rightElbow">> = {
   squat: ["leftKnee", "rightKnee", "leftHip", "rightHip"],
@@ -75,7 +75,7 @@ export default function AnalyzePage() {
         <div className="space-y-4">
           <CameraFrame ref={cameraRef} active={running}>
             {running ? (
-              <HUDOverlay pose={pose} exerciseLabel={EXERCISE_LABEL[exercise]} />
+              <HUDOverlay pose={pose} exerciseLabel={exercise} />
             ) : null}
           </CameraFrame>
           <Card>

@@ -1,3 +1,5 @@
+import { WorkoutSquatsIcon, WorkoutWarmUpIcon } from "@hugeicons/core-free-icons"
+
 export type ExerciseType = "squat" | "pushup"
 
 export type FsmState = "idle" | "up" | "descending" | "bottom" | "ascending"
@@ -49,4 +51,9 @@ export const FSM_LABEL: Record<FsmState, string> = {
   descending: "下降",
   bottom: "底部",
   ascending: "上升",
+}
+
+export const EXERCISE_ICONS: Record<ExerciseType, typeof WorkoutSquatsIcon> = {
+  squat: WorkoutSquatsIcon,
+  pushup: WorkoutWarmUpIcon,
 }

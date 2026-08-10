@@ -3,13 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { HugeiconsIcon } from "@hugeicons/react"
-import {
-  ShieldUserIcon,
-  Login03Icon,
-  UserAdd01Icon,
-} from "@hugeicons/core-free-icons"
 
+import {
+  ShieldUser,
+  LogIn,
+  UserPlus
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSession } from "@/lib/auth-client"
 
@@ -40,20 +39,20 @@ export function RequireAuth({
     return (
       <div className="mx-auto flex min-h-[60vh] w-full max-w-md flex-col items-center justify-center px-4 py-12 text-center">
         <div className="grid h-14 w-14 place-items-center rounded-3xl bg-primary/10 text-primary">
-          <HugeiconsIcon icon={ShieldUserIcon} size={26} strokeWidth={1.8} />
+          <ShieldUser size={28} />
         </div>
         <h2 className="mt-5 text-lg font-semibold tracking-tight md:text-xl">{title}</h2>
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">{description}</p>
         <div className="mt-6 flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
           <Button asChild size="lg" className="sm:w-auto">
             <Link href={`/login?redirect=${redirect}`}>
-              <HugeiconsIcon icon={Login03Icon} size={16} strokeWidth={2} />
+              <LogIn size={16} />
               登入
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline" className="sm:w-auto">
             <Link href={`/register?redirect=${redirect}`}>
-              <HugeiconsIcon icon={UserAdd01Icon} size={16} strokeWidth={2} />
+              <UserPlus size={16} />
               註冊新帳號
             </Link>
           </Button>
