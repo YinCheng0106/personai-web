@@ -8,7 +8,7 @@ import {
   CameraOff,
   Camera as CameraIcon,
   CircleAlert,
-  Loader
+  Loader,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ type Props = {
   active: boolean
   className?: string
   children?: React.ReactNode
+  onVideoReady?: (video: HTMLVideoElement | null) => void
 }
 
 type PermissionStatus =
@@ -31,10 +32,11 @@ type PermissionStatus =
   | "error"
 
 export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
-  { active, className, children },
-  ref,
+  { active, className, children, onVideoReady },
+  ref
 ) {
   const fallbackRef = useRef<CameraType>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const cameraRef = (ref as React.RefObject<CameraType> | null) ?? fallbackRef
   const [ready, setReady] = useState(false)
   const [status, setStatus] = useState<PermissionStatus>("idle")
@@ -48,7 +50,9 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
       !navigator.mediaDevices?.getUserMedia
     ) {
       setStatus("unsupported")
-      setErrorMessage("此瀏覽器不支援相機 API，請改用最新版的 Chrome/Safari/Firefox。")
+      setErrorMessage(
+        "此瀏覽器不支援相機 API，請改用最新版的 Chrome/Safari/Firefox。"
+      )
       return
     }
     if (
@@ -72,7 +76,10 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
   }, [])
 
   useEffect(() => {
-    if (!active) return
+    if (!active) {
+      onVideoReady?.(null)
+      return
+    }
     let cancelled = false
     queueMicrotask(() => {
       if (cancelled) return
@@ -81,12 +88,24 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
     return () => {
       cancelled = true
     }
-  }, [active, probePermission])
+  }, [active, onVideoReady, probePermission])
+
+  const handleVideoReady = useCallback(() => {
+    setReady(true)
+    requestAnimationFrame(() => {
+      onVideoReady?.(containerRef.current?.querySelector("video") ?? null)
+    })
+  }, [onVideoReady])
 
   async function requestPermission() {
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.mediaDevices?.getUserMedia
+    ) {
       setStatus("unsupported")
-      setErrorMessage("此瀏覽器不支援相機 API，請改用最新版的 Chrome/Safari/Firefox。")
+      setErrorMessage(
+        "此瀏覽器不支援相機 API，請改用最新版的 Chrome/Safari/Firefox。"
+      )
       return
     }
     setStatus("checking")
@@ -103,7 +122,7 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
       if (e.name === "NotAllowedError" || e.name === "PermissionDeniedError") {
         setStatus("denied")
         setErrorMessage(
-          "瀏覽器已拒絕相機存取。請點選網址列旁的鎖頭圖示\n將相機權限改為「允許」後重試。",
+          "瀏覽器已拒絕相機存取。請點選網址列旁的鎖頭圖示\n將相機權限改為「允許」後重試。"
         )
       } else if (
         e.name === "NotFoundError" ||
@@ -126,9 +145,10 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
 
   return (
     <div
+      ref={containerRef}
       className={cn(
         "relative aspect-3/4 w-full overflow-hidden rounded-3xl bg-black md:aspect-video",
-        className,
+        className
       )}
     >
       {active && status === "granted" ? (
@@ -136,9 +156,10 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
           ref={cameraRef}
           aspectRatio="cover"
           facingMode="user"
-          videoReadyCallback={() => setReady(true)}
+          videoReadyCallback={handleVideoReady}
           errorMessages={{
-            noCameraAccessible: "找不到可用的相機裝置，請連接相機或更換瀏覽器。",
+            noCameraAccessible:
+              "找不到可用的相機裝置，請連接相機或更換瀏覽器。",
             permissionDenied: "相機權限被拒絕，請點擊下方按鈕重新授權。",
             switchCamera: "目前裝置只有一個相機，無法切換。",
             canvas: "瀏覽器不支援 Canvas。",
@@ -154,7 +175,8 @@ export const CameraFrame = forwardRef<CameraType, Props>(function CameraFrame(
             </span>
             <p className="text-sm font-medium">相機尚未啟動</p>
             <p className="max-w-xs text-xs text-zinc-400">
-              點擊下方「開始訓練」啟動相機，AI 教練會即時偵測你的姿勢並計算動作次數。
+              點擊下方「開始訓練」啟動相機，AI
+              教練會即時偵測你的姿勢並計算動作次數。
             </p>
           </div>
         </div>
@@ -218,10 +240,16 @@ function PermissionPrompt({ status, message, onAllow }: PromptProps) {
         <span
           className={cn(
             "grid h-14 w-14 place-items-center rounded-3xl",
-            isError ? "bg-destructive/20 text-destructive" : "bg-white/10 text-white",
+            isError
+              ? "bg-destructive/20 text-destructive"
+              : "bg-white/10 text-white"
           )}
         >
-          {isError ? <CircleAlert size={26} strokeWidth={1.6} /> : <CameraIcon size={26} strokeWidth={1.6} />}
+          {isError ? (
+            <CircleAlert size={26} strokeWidth={1.6} />
+          ) : (
+            <CameraIcon size={26} strokeWidth={1.6} />
+          )}
         </span>
         <div className="space-y-1.5">
           <p className="text-base font-medium text-white">{title}</p>

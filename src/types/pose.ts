@@ -1,4 +1,7 @@
-import { WorkoutSquatsIcon, WorkoutWarmUpIcon } from "@hugeicons/core-free-icons"
+import {
+  WorkoutSquatsIcon,
+  WorkoutWarmUpIcon,
+} from "@hugeicons/core-free-icons"
 
 export type ExerciseType = "squat" | "pushup"
 
@@ -33,6 +36,8 @@ export type ServerFrame = {
     right_hip: number
     left_elbow: number
     right_elbow: number
+    left_body: number
+    right_body: number
   }>
   errors: string[]
   confidence: number

@@ -10,11 +10,22 @@ export type WorkoutRecord = {
   performedAt: string
 }
 
+export type WorkoutRecordInput = {
+  exercise: ExerciseType
+  reps: number
+  sets?: number
+  durationSec: number
+  calories: number
+  averageIntensity?: "light" | "moderate" | "vigorous"
+  errorsCount: number
+}
+
 export type DailySummary = {
   date: string
   totalReps: number
   totalCalories: number
   durationMin: number
+  workoutCount: number
 }
 
 export type ExerciseSummary = {

@@ -10,8 +10,8 @@ export function normalizeFrame(frame: ServerFrame): PoseData {
     angles: {
       leftKnee: a.left_knee ?? 0,
       rightKnee: a.right_knee ?? 0,
-      leftHip: a.left_hip ?? 0,
-      rightHip: a.right_hip ?? 0,
+      leftHip: a.left_hip ?? a.left_body ?? 0,
+      rightHip: a.right_hip ?? a.right_body ?? 0,
       leftElbow: a.left_elbow ?? 0,
       rightElbow: a.right_elbow ?? 0,
     },
@@ -27,12 +27,13 @@ export type AnalyzeSocketHandlers = {
   onOpen?: () => void
   onClose?: () => void
   onError?: (err: Event) => void
+  onServerError?: (message: string) => void
 }
 
 export function connectAnalyzeSocket(
   exercise: ExerciseType,
   weightKg: number,
-  handlers: AnalyzeSocketHandlers,
+  handlers: AnalyzeSocketHandlers
 ): WebSocket {
   const url = `${WS_BASE}/ws/analyze/${exercise}?weight_kg=${weightKg}`
   const ws = new WebSocket(url)
@@ -41,7 +42,11 @@ export function connectAnalyzeSocket(
   ws.onerror = (e) => handlers.onError?.(e)
   ws.onmessage = (e) => {
     try {
-      const parsed = JSON.parse(e.data) as ServerFrame
+      const parsed = JSON.parse(e.data) as ServerFrame & { error?: string }
+      if (parsed.error) {
+        handlers.onServerError?.(parsed.error)
+        return
+      }
       handlers.onFrame(normalizeFrame(parsed))
     } catch {
       // ignore malformed frames

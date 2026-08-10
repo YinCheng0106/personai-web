@@ -1,6 +1,13 @@
 import type { ExerciseType } from "@/types/pose"
 
-export const EXERCISES: { value: ExerciseType; label: string; description: string }[] = [
+// 前後端正式帳號串接完成前，所有 Mock Session 共用此測試使用者。
+export const INTEGRATION_TEST_USER_ID = "u001"
+
+export const EXERCISES: {
+  value: ExerciseType
+  label: string
+  description: string
+}[] = [
   { value: "squat", label: "深蹲", description: "雙腳與肩同寬，腰背挺直" },
   { value: "pushup", label: "伏地挺身", description: "核心收緊，手肘成 90°" },
 ]

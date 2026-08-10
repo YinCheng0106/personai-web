@@ -1,16 +1,24 @@
-import type { DailySummary, ExerciseSummary, GoalProgress, WorkoutRecord } from "@/types/workout"
+import type {
+  DailySummary,
+  ExerciseSummary,
+  GoalProgress,
+  WorkoutRecord,
+} from "@/types/workout"
 import type { BodyComposition, InBody } from "@/types/inbody"
 
-export const MOCK_DAILY: DailySummary[] = Array.from({ length: 7 }).map((_, i) => {
-  const d = new Date()
-  d.setDate(d.getDate() - (6 - i))
-  return {
-    date: d.toISOString().slice(0, 10),
-    totalReps: 20 + Math.round(Math.random() * 60),
-    totalCalories: 80 + Math.round(Math.random() * 200),
-    durationMin: 8 + Math.round(Math.random() * 22),
+export const MOCK_DAILY: DailySummary[] = Array.from({ length: 7 }).map(
+  (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (6 - i))
+    return {
+      date: d.toISOString().slice(0, 10),
+      totalReps: 20 + Math.round(Math.random() * 60),
+      totalCalories: 80 + Math.round(Math.random() * 200),
+      durationMin: 8 + Math.round(Math.random() * 22),
+      workoutCount: 1,
+    }
   }
-})
+)
 
 export const MOCK_WORKOUTS: WorkoutRecord[] = [
   {
@@ -52,8 +60,20 @@ export const MOCK_WORKOUTS: WorkoutRecord[] = [
 ]
 
 export const MOCK_EXERCISE_SUMMARY: ExerciseSummary[] = [
-  { exercise: "squat", totalReps: 312, totalCalories: 1240, sessions: 12, avgFormScore: 90 },
-  { exercise: "pushup", totalReps: 188, totalCalories: 720, sessions: 9, avgFormScore: 82 },
+  {
+    exercise: "squat",
+    totalReps: 312,
+    totalCalories: 1240,
+    sessions: 12,
+    avgFormScore: 90,
+  },
+  {
+    exercise: "pushup",
+    totalReps: 188,
+    totalCalories: 720,
+    sessions: 9,
+    avgFormScore: 82,
+  },
 ]
 
 export const MOCK_GOALS: GoalProgress[] = [
@@ -68,6 +88,9 @@ export const MOCK_INBODY: InBody = {
   bodyFatPct: 17.8,
   skeletalMuscleKg: 31.2,
   bmr: 1568,
+  bmi: 22.6,
+  bmiCategory: "正常",
+  leanBodyMassKg: 56.2,
   measuredAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
 }
 

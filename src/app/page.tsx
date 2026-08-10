@@ -1,48 +1,134 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { HugeiconsIcon } from "@hugeicons/react"
 import {
   Activity04Icon,
   FireIcon,
+  PlayIcon,
   TimerIcon,
   WorkoutSquatsIcon,
-  PlayIcon,
 } from "@hugeicons/core-free-icons"
 
-import { PageContainer } from "@/components/layout/page-container"
-import { MetricCard } from "@/components/ui/metric-card"
-import { Button } from "@/components/ui/button"
-import { WeeklyChart } from "@/components/dashboard/weekly-chart"
-import { GoalProgressCard } from "@/components/dashboard/goal-progress"
-import { TodayWorkoutList } from "@/components/dashboard/today-workout-list"
-import { PostureQuality } from "@/components/dashboard/posture-quality"
 import { RequireAuth } from "@/components/auth/require-auth"
-import {
-  MOCK_DAILY,
-  MOCK_GOALS,
-  MOCK_WORKOUTS,
-} from "@/lib/mock-data"
+import { GoalProgressCard } from "@/components/dashboard/goal-progress"
+import { PostureQuality } from "@/components/dashboard/posture-quality"
+import { TodayWorkoutList } from "@/components/dashboard/today-workout-list"
+import { WeeklyChart } from "@/components/dashboard/weekly-chart"
+import { PageContainer } from "@/components/layout/page-container"
+import { Button } from "@/components/ui/button"
+import { MetricCard } from "@/components/ui/metric-card"
+import { api } from "@/lib/api"
+import { useSession } from "@/lib/auth-client"
+import type { DailySummary, GoalProgress, WorkoutRecord } from "@/types/workout"
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10)
+}
 
 function isToday(iso: string) {
-  const d = new Date(iso)
-  const t = new Date()
-  return (
-    d.getFullYear() === t.getFullYear() &&
-    d.getMonth() === t.getMonth() &&
-    d.getDate() === t.getDate()
-  )
+  return dateKey(new Date(iso)) === dateKey(new Date())
 }
 
 export default function DashboardPage() {
-  const todayWorkouts = MOCK_WORKOUTS.filter((w) => isToday(w.performedAt))
-  const todayCalories = todayWorkouts.reduce((s, w) => s + w.calories, 0)
-  const todayReps = todayWorkouts.reduce((s, w) => s + w.reps, 0)
-  const todayDuration = todayWorkouts.reduce((s, w) => s + w.durationSec, 0)
-  const avgFormScore =
-    todayWorkouts.length > 0
-      ? Math.round(
-          todayWorkouts.reduce((s, w) => s + w.formScore, 0) / todayWorkouts.length,
-        )
-      : 88
+  const session = useSession()
+  const [workouts, setWorkouts] = useState<WorkoutRecord[]>([])
+  const [daily, setDaily] = useState<DailySummary[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!session.data) return
+    let cancelled = false
+    queueMicrotask(() => {
+      if (!cancelled) setLoading(true)
+    })
+    Promise.all([
+      api.getWorkouts(session.data.user.id),
+      api.getDailySummary(session.data.user.id),
+    ])
+      .then(([nextWorkouts, nextDaily]) => {
+        if (!cancelled) {
+          setWorkouts(nextWorkouts)
+          setDaily(nextDaily)
+          setError(null)
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled)
+          setError(cause instanceof Error ? cause.message : "資料載入失敗。")
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [session.data])
+
+  const weekly = useMemo(() => {
+    const byDate = new Map(daily.map((item) => [item.date, item]))
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date()
+      date.setDate(date.getDate() - (6 - index))
+      const key = dateKey(date)
+      return (
+        byDate.get(key) ?? {
+          date: key,
+          totalReps: 0,
+          totalCalories: 0,
+          durationMin: 0,
+          workoutCount: 0,
+        }
+      )
+    })
+  }, [daily])
+
+  const todayWorkouts = workouts.filter((item) => isToday(item.performedAt))
+  const todayCalories = todayWorkouts.reduce(
+    (sum, item) => sum + item.calories,
+    0
+  )
+  const todayReps = todayWorkouts.reduce((sum, item) => sum + item.reps, 0)
+  const todayDuration = todayWorkouts.reduce(
+    (sum, item) => sum + item.durationSec,
+    0
+  )
+  const avgFormScore = workouts.length
+    ? Math.round(
+        workouts.reduce((sum, item) => sum + item.formScore, 0) /
+          workouts.length
+      )
+    : 0
+  const weeklyTotals = weekly.reduce(
+    (totals, item) => ({
+      reps: totals.reps + item.totalReps,
+      duration: totals.duration + item.durationMin,
+      calories: totals.calories + item.totalCalories,
+    }),
+    { reps: 0, duration: 0, calories: 0 }
+  )
+  const goals: GoalProgress[] = [
+    {
+      label: "本週訓練次數",
+      current: weeklyTotals.reps,
+      target: 200,
+      unit: "下",
+    },
+    {
+      label: "本週訓練時間",
+      current: Math.round(weeklyTotals.duration),
+      target: 150,
+      unit: "分",
+    },
+    {
+      label: "本週燃燒卡路里",
+      current: Math.round(weeklyTotals.calories),
+      target: 1200,
+      unit: "kcal",
+    },
+  ]
 
   return (
     <PageContainer
@@ -61,48 +147,56 @@ export default function DashboardPage() {
         title="登入後檢視今日訓練"
         description="今日進度、目標與訓練紀錄屬於個人資料，請先登入或註冊帳號。"
       >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="今日次數"
-          value={todayReps}
-          unit="下"
-          icon={<HugeiconsIcon icon={WorkoutSquatsIcon} size={16} strokeWidth={2} />}
-          delta={{ value: "較昨日 +8%", tone: "up" }}
-        />
-        <MetricCard
-          label="今日燃燒"
-          value={todayCalories}
-          unit="kcal"
-          icon={<HugeiconsIcon icon={FireIcon} size={16} strokeWidth={2} />}
-          delta={{ value: "目標 600 kcal", tone: "neutral" }}
-        />
-        <MetricCard
-          label="訓練時間"
-          value={Math.round(todayDuration / 60)}
-          unit="分鐘"
-          icon={<HugeiconsIcon icon={TimerIcon} size={16} strokeWidth={2} />}
-          delta={{ value: "本週累計 86 分", tone: "neutral" }}
-        />
-        <MetricCard
-          label="姿勢平均"
-          value={avgFormScore}
-          unit="/ 100"
-          icon={<HugeiconsIcon icon={Activity04Icon} size={16} strokeWidth={2} />}
-          delta={{ value: "穩定提升中", tone: "up" }}
-        />
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <WeeklyChart data={MOCK_DAILY} />
+        {loading ? (
+          <p className="mb-4 text-sm text-muted-foreground">載入訓練資料中…</p>
+        ) : null}
+        {error ? (
+          <p className="mb-4 text-sm text-destructive">{error}</p>
+        ) : null}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="今日次數"
+            value={todayReps}
+            unit="下"
+            icon={
+              <HugeiconsIcon
+                icon={WorkoutSquatsIcon}
+                size={16}
+                strokeWidth={2}
+              />
+            }
+          />
+          <MetricCard
+            label="今日燃燒"
+            value={Math.round(todayCalories)}
+            unit="kcal"
+            icon={<HugeiconsIcon icon={FireIcon} size={16} strokeWidth={2} />}
+          />
+          <MetricCard
+            label="訓練時間"
+            value={Math.round(todayDuration / 60)}
+            unit="分鐘"
+            icon={<HugeiconsIcon icon={TimerIcon} size={16} strokeWidth={2} />}
+          />
+          <MetricCard
+            label="姿勢平均"
+            value={avgFormScore}
+            unit="/ 100"
+            icon={
+              <HugeiconsIcon icon={Activity04Icon} size={16} strokeWidth={2} />
+            }
+          />
         </div>
-        <PostureQuality score={avgFormScore} />
-      </div>
-
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <TodayWorkoutList records={todayWorkouts} />
-        <GoalProgressCard goals={MOCK_GOALS} />
-      </div>
+        <div className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <WeeklyChart data={weekly} />
+          </div>
+          <PostureQuality score={avgFormScore} />
+        </div>
+        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+          <TodayWorkoutList records={todayWorkouts} />
+          <GoalProgressCard goals={goals} />
+        </div>
       </RequireAuth>
     </PageContainer>
   )

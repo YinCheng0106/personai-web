@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { INTEGRATION_TEST_USER_ID } from "@/lib/constants"
 import type { User } from "@/types/user"
 
 /**
@@ -39,9 +40,7 @@ export type Session = {
   expiresAt: string
 }
 
-type AuthResult<T> =
-  | { data: T; error: null }
-  | { data: null; error: AuthError }
+type AuthResult<T> = { data: T; error: null } | { data: null; error: AuthError }
 
 const STORAGE_KEY = "personai.auth.session"
 const ACCOUNTS_KEY = "personai.auth.accounts"
@@ -49,14 +48,14 @@ const ACCOUNTS_KEY = "personai.auth.accounts"
 type StoredAccount = {
   id: string
   email: string
-  image: string,
+  image: string
   name: string
   passwordHash: string
 }
 
 const SEED_ACCOUNTS: StoredAccount[] = [
   {
-    id: "user_demo_yc",
+    id: INTEGRATION_TEST_USER_ID,
     email: "demo@personai.app",
     image: "",
     name: "示範使用者",
@@ -107,7 +106,13 @@ function readSession(): Session | null {
       window.localStorage.removeItem(STORAGE_KEY)
       return null
     }
-    return session
+    return {
+      ...session,
+      user: {
+        ...session.user,
+        id: INTEGRATION_TEST_USER_ID,
+      },
+    }
   } catch {
     return null
   }
@@ -128,12 +133,12 @@ function makeSession(account: StoredAccount): Session {
   expires.setDate(expires.getDate() + 7)
   return {
     user: {
-      id: account.id,
+      id: INTEGRATION_TEST_USER_ID,
       image: account.image,
       email: account.email,
       name: account.name,
     },
-    token: `mock.${account.id}.${Date.now()}`,
+    token: `mock.${INTEGRATION_TEST_USER_ID}.${Date.now()}`,
     expiresAt: expires.toISOString(),
   }
 }
@@ -154,12 +159,12 @@ type SignUpEmailInput = {
 }
 
 async function signInEmail(
-  input: SignInEmailInput,
+  input: SignInEmailInput
 ): Promise<AuthResult<Session>> {
   await delay()
   const accounts = readAccounts()
   const account = accounts.find(
-    (a) => a.email.toLowerCase() === input.email.trim().toLowerCase(),
+    (a) => a.email.toLowerCase() === input.email.trim().toLowerCase()
   )
   if (!account) {
     return {
@@ -185,7 +190,7 @@ async function signInEmail(
 }
 
 async function signUpEmail(
-  input: SignUpEmailInput,
+  input: SignUpEmailInput
 ): Promise<AuthResult<Session>> {
   await delay()
   const email = input.email.trim().toLowerCase()

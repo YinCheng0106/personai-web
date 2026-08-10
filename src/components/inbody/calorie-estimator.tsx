@@ -1,29 +1,40 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
+
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { EXERCISES } from "@/lib/constants"
-import type { ExerciseType } from "@/types/pose"
+import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
-
-const MET: Record<ExerciseType, number> = {
-  squat: 5.0,
-  pushup: 3.8,
-}
+import type { ExerciseType } from "@/types/pose"
 
 type Props = {
-  defaultWeightKg: number
+  userId: string
 }
 
-export function CalorieEstimator({ defaultWeightKg }: Props) {
+export function CalorieEstimator({ userId }: Props) {
   const [exercise, setExercise] = useState<ExerciseType>("squat")
   const [duration, setDuration] = useState(8)
-  const [weight, setWeight] = useState(defaultWeightKg)
+  const [calories, setCalories] = useState<number | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const calories = useMemo(() => {
-    const met = MET[exercise]
-    return ((met * 3.5 * weight) / 200) * duration
-  }, [exercise, weight, duration])
+  async function estimate() {
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await api.estimateCalories(userId, {
+        exercise,
+        durationMin: duration,
+      })
+      setCalories(result.calories)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "估算失敗。")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <Card className="flex h-full flex-col">
@@ -32,32 +43,41 @@ export function CalorieEstimator({ defaultWeightKg }: Props) {
       </CardHeader>
       <CardContent className="flex flex-1 flex-col space-y-4">
         <div className="grid grid-cols-2 gap-2">
-          {EXERCISES.map((ex) => {
-            const active = ex.value === exercise
-            return (
-              <button
-                key={ex.value}
-                onClick={() => setExercise(ex.value)}
-                className={cn(
-                  "rounded-xl border px-3 py-2 text-sm font-medium transition-colors",
-                  active
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border bg-card text-foreground hover:bg-muted/60",
-                )}
-              >
-                {ex.label}
-              </button>
-            )
-          })}
+          {EXERCISES.map((item) => (
+            <button
+              key={item.value}
+              onClick={() => setExercise(item.value)}
+              className={cn(
+                "rounded-xl border px-3 py-2 text-sm font-medium transition-colors",
+                item.value === exercise
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-card hover:bg-muted/60"
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
-        <Field label="體重 (kg)" value={weight} onChange={setWeight} step={0.5} />
-        <Field label="時長 (分鐘)" value={duration} onChange={setDuration} step={1} />
+        <Field label="時長（分鐘）" value={duration} onChange={setDuration} />
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => void estimate()}
+          disabled={loading || duration <= 0}
+        >
+          {loading ? "估算中…" : "使用已儲存體重估算"}
+        </Button>
         <div className="flex flex-1 flex-col items-center justify-center rounded-xl bg-muted/60 p-4 text-center">
           <div className="text-xs text-muted-foreground">預估燃燒</div>
           <div className="text-4xl font-semibold tabular-nums tracking-tight">
-            {calories.toFixed(1)}
-            <span className="ml-1 text-sm font-normal text-muted-foreground">kcal</span>
+            {calories === null ? "—" : calories.toFixed(1)}
+            <span className="ml-1 text-sm font-normal text-muted-foreground">
+              kcal
+            </span>
           </div>
+          {error ? (
+            <p className="mt-2 text-xs text-destructive">{error}</p>
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -68,22 +88,21 @@ function Field({
   label,
   value,
   onChange,
-  step,
 }: {
   label: string
   value: number
-  onChange: (v: number) => void
-  step: number
+  onChange: (value: number) => void
 }) {
   return (
     <label className="flex items-center justify-between gap-3">
       <span className="text-sm text-muted-foreground">{label}</span>
       <input
         type="number"
+        min={1}
+        max={1440}
         value={value}
-        step={step}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-9 w-24 rounded-xl border border-border bg-background px-3 text-right text-sm tabular-nums outline-none focus:border-primary/60 focus:ring-2 focus:ring-primary/20"
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-9 w-24 rounded-xl border border-border bg-background px-3 text-right text-sm tabular-nums"
       />
     </label>
   )
