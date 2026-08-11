@@ -44,7 +44,7 @@ function LoginForm() {
     const result = await authClient.signIn.email({ email, password })
     setSubmitting(false)
     if (result.error) {
-      setError(result.error.message)
+      setError(result.error.message ?? "登入失敗，請稍後再試。")
       return
     }
     router.replace(redirectTo)

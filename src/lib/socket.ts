@@ -5,6 +5,8 @@ const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE ?? "ws://localhost:8000"
 export function normalizeFrame(frame: ServerFrame): PoseData {
   const a = frame.angles ?? {}
   return {
+    frameId: frame.frame_id,
+    processingMs: frame.processing_ms,
     reps: frame.rep_count,
     state: (frame.state.toLowerCase() as PoseData["state"]) ?? "idle",
     angles: {
@@ -33,10 +35,11 @@ export type AnalyzeSocketHandlers = {
 export function connectAnalyzeSocket(
   exercise: ExerciseType,
   weightKg: number,
+  token: string,
   handlers: AnalyzeSocketHandlers
 ): WebSocket {
   const url = `${WS_BASE}/ws/analyze/${exercise}?weight_kg=${weightKg}`
-  const ws = new WebSocket(url)
+  const ws = new WebSocket(url, ["personai.v1", token])
   ws.onopen = () => handlers.onOpen?.()
   ws.onclose = () => handlers.onClose?.()
   ws.onerror = (e) => handlers.onError?.(e)

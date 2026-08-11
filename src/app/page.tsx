@@ -44,10 +44,7 @@ export default function DashboardPage() {
     queueMicrotask(() => {
       if (!cancelled) setLoading(true)
     })
-    Promise.all([
-      api.getWorkouts(session.data.user.id),
-      api.getDailySummary(session.data.user.id),
-    ])
+    Promise.all([api.getWorkouts(), api.getDailySummary()])
       .then(([nextWorkouts, nextDaily]) => {
         if (!cancelled) {
           setWorkouts(nextWorkouts)

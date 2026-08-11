@@ -33,7 +33,7 @@ export default function InBodyPage() {
       if (!cancelled) setLoading(true)
     })
     api
-      .getInBody(session.data.user.id)
+      .getInBody()
       .then((value) => {
         if (!cancelled) setProfile(value)
       })
@@ -58,7 +58,7 @@ export default function InBodyPage() {
     setSaving(true)
     setError(null)
     try {
-      setProfile(await api.postInBody(session.data.user.id, values))
+      setProfile(await api.postInBody(values))
       setEditing(false)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "身體資料儲存失敗。")
@@ -159,7 +159,7 @@ export default function InBodyPage() {
                 <BmiChart bmi={profile.bmi} />
                 <BodyComposition items={composition} />
               </div>
-              <CalorieEstimator userId={session.data?.user.id ?? "u001"} />
+              <CalorieEstimator />
             </div>
           </>
         )}

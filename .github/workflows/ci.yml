@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: personai_test
+          POSTGRES_USER: personai
+          POSTGRES_PASSWORD: personai_test_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U personai -d personai_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://personai:personai_test_only@127.0.0.1:5432/personai_test
+      BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters-long
+      BETTER_AUTH_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_BETTER_AUTH_URL: http://127.0.0.1:3000
+      AUTH_ISSUER: http://127.0.0.1:3000
+      AUTH_AUDIENCE: personai-api
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+      NEXT_PUBLIC_WS_BASE: ws://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: psql "$DATABASE_URL" -c "CREATE SCHEMA IF NOT EXISTS personai_auth"
+      - run: bun run auth:migrate
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run test
+      - run: bun run build
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run test:e2e

@@ -92,7 +92,7 @@ export default function AnalyzePage() {
     setSaving(true)
     setSaveMessage(null)
     try {
-      await api.postWorkoutRecord(session.data.user.id, {
+      await api.postWorkoutRecord({
         exercise,
         reps: pose.reps,
         durationSec: duration,

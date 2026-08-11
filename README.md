@@ -13,7 +13,7 @@ PersonAI is the web frontend for an AI personal trainer. It pairs a live camera-
 - **Workout History** — Activity heatmap, per-exercise summaries, and a chronological workout log.
 - **InBody Insights** — BMI and body-composition cards plus a calorie estimator for planning sessions.
 - **Theming** — Light/dark mode powered by `next-themes` with OKLCH design tokens.
-- **Auth-ready** — `better-auth` configured against Postgres with email/password (routes to be wired up).
+- **Authenticated data flow** — Better Auth email/password sessions use HttpOnly cookies; short-lived JWKS JWTs authorize every FastAPI REST and WebSocket request.
 - **Localized UI** — All user-facing copy is in Traditional Chinese (zh-TW); backend enums are translated at the edge via canonical label maps.
 
 ## Tech Stack
@@ -31,8 +31,8 @@ PersonAI is the web frontend for an AI personal trainer. It pairs a live camera-
 
 - [Bun](https://bun.sh/) ≥ 1.0 (npm/pnpm/yarn also work, but `bun.lock` is the source of truth)
 - Node.js ≥ 20 (only required if you opt out of Bun)
-- A running [PersonAI backend](https://github.com/YinCheng0106/personai-api) for live pose analysis and REST data (optional — the app ships with mock data)
-- PostgreSQL (only required when you wire up `better-auth`)
+- A running [PersonAI backend](https://github.com/YinCheng0106/personai-api) for live pose analysis and REST data
+- PostgreSQL for Better Auth (Supabase Session Pooler in production)
 
 ### Installation
 
@@ -61,6 +61,8 @@ cp .env.sample .env.local
 | `DATABASE_URL`          | PostgreSQL connection string consumed by `better-auth`.                     | —                        |
 | `BETTER_AUTH_SECRET`    | Secret used to sign auth tokens (generate with `openssl rand -base64 32`).  | —                        |
 | `BETTER_AUTH_URL`       | Public base URL of this app (e.g. `http://localhost:3000`).                 | —                        |
+| `AUTH_ISSUER`           | JWT issuer; must match the FastAPI setting.                                | `http://localhost:3000`  |
+| `AUTH_AUDIENCE`         | JWT audience; must match the FastAPI setting.                              | `personai-api`           |
 
 ### Available Scripts
 
@@ -72,6 +74,9 @@ cp .env.sample .env.local
 | `bun run lint`       | Run ESLint (flat config, `eslint-config-next`).          |
 | `bun run typecheck`  | Type-check the project with `tsc --noEmit`.              |
 | `bun run format`     | Format `**/*.{ts,tsx}` with Prettier.                    |
+| `bun run test`       | Run Vitest component and contract tests.                 |
+| `bun run test:e2e`   | Run Playwright browser tests.                            |
+| `bun run auth:migrate` | Create/update Better Auth tables in `personai_auth`.    |
 
 Open [http://localhost:3000](http://localhost:3000) once the dev server is running.
 
@@ -83,10 +88,17 @@ bunx shadcn@latest add <component>
 
 Components land in `src/components/ui/` using the `radix-luma` style with `neutral` base color and HugeIcons.
 
-### Switching from Mock to Live Data
+### Authentication database setup
 
-- **Pose stream:** in `src/app/analyze/page.tsx`, replace `useMockPose` with a `useEffect` that calls `connectAnalyzeSocket(...)` from `src/lib/socket.ts`. The `PoseData` shape is identical — all snake/camel translation lives in `normalizeFrame()`.
-- **REST data:** swap `MOCK_*` imports from `src/lib/mock-data.ts` for the matching helpers in `src/lib/api.ts`. Response types (`WorkoutRecord`, `DailySummary`, `ExerciseSummary`, `InBody`) align 1:1.
+1. Apply `scripts/bootstrap-auth-schema.sql` to create the private `personai_auth` schema.
+2. Run `bun run auth:migrate`; Better Auth owns this schema.
+3. Configure FastAPI with the matching issuer, audience, and `/api/auth/jwks` URL.
+
+REST and pose pages already use the live API. Legacy mock fixtures remain only for isolated UI development and are not used for authenticated application data.
+
+### Deployment gate
+
+Do not publish the Vercel frontend until the NAS API is available through HTTPS/WSS. Use `.env.production.example` as the secret checklist; never expose the database password or Better Auth secret through `NEXT_PUBLIC_*` variables.
 
 ## Project Structure
 

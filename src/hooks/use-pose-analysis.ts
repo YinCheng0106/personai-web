@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision"
 
 import { connectAnalyzeSocket } from "@/lib/socket"
+import { getAccessToken } from "@/lib/auth-client"
 import type { ExerciseType, PoseData } from "@/types/pose"
 
 const WASM_BASE =
@@ -15,6 +16,8 @@ const MODEL_PATH =
 const FRAME_INTERVAL_MS = 1000 / 12
 
 export const EMPTY_POSE: PoseData = {
+  frameId: 0,
+  processingMs: 0,
   reps: 0,
   state: "idle",
   angles: {
@@ -79,6 +82,7 @@ export function usePoseAnalysis({
   const [status, setStatus] = useState<PoseAnalysisStatus>("idle")
   const [error, setError] = useState<string | null>(null)
   const socketRef = useRef<WebSocket | null>(null)
+  const frameIdRef = useRef(0)
 
   const reset = useCallback(() => {
     setPose(EMPTY_POSE)
@@ -104,24 +108,38 @@ export function usePoseAnalysis({
       }
     })
 
-    const socket = connectAnalyzeSocket(exercise, weightKg, {
-      onOpen: () => {
-        if (!cancelled) setStatus("live")
-      },
-      onClose: () => {
-        if (!cancelled) setStatus("error")
-      },
-      onError: () => {
-        if (!cancelled) setError("無法連線至姿勢分析伺服器。")
-      },
-      onServerError: (message) => {
-        if (!cancelled) setError(message)
-      },
-      onFrame: (frame) => {
-        if (!cancelled) setPose(frame)
-      },
-    })
-    socketRef.current = socket
+    let socket: WebSocket | null = null
+
+    void getAccessToken()
+      .then((token) => {
+        if (cancelled) return
+        socket = connectAnalyzeSocket(exercise, weightKg, token, {
+          onOpen: () => {
+            if (!cancelled) setStatus("live")
+          },
+          onClose: () => {
+            if (!cancelled) setStatus("error")
+          },
+          onError: () => {
+            if (!cancelled) setError("無法連線至姿勢分析伺服器。")
+          },
+          onServerError: (message) => {
+            if (!cancelled) setError(message)
+          },
+          onFrame: (frame) => {
+            if (!cancelled) setPose(frame)
+          },
+        })
+        socketRef.current = socket
+      })
+      .catch((cause) => {
+        if (!cancelled) {
+          setStatus("error")
+          setError(
+            cause instanceof Error ? cause.message : "無法取得登入憑證。"
+          )
+        }
+      })
     queueMicrotask(() => {
       if (!cancelled) setStatus("connecting")
     })
@@ -142,10 +160,11 @@ export function usePoseAnalysis({
               const landmarks = result.landmarks[0]
               if (
                 landmarks?.length === 33 &&
-                socket.readyState === WebSocket.OPEN
+                socket?.readyState === WebSocket.OPEN
               ) {
                 socket.send(
                   JSON.stringify({
+                    frame_id: ++frameIdRef.current,
                     keypoints: landmarks.map((point) => ({
                       x: point.x,
                       y: point.y,
@@ -180,7 +199,7 @@ export function usePoseAnalysis({
     return () => {
       cancelled = true
       cancelAnimationFrame(animationFrame)
-      socket.close()
+      socket?.close()
       if (socketRef.current === socket) socketRef.current = null
     }
   }, [active, exercise, video, weightKg])

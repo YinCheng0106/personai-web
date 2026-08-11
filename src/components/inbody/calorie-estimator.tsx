@@ -9,11 +9,7 @@ import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import type { ExerciseType } from "@/types/pose"
 
-type Props = {
-  userId: string
-}
-
-export function CalorieEstimator({ userId }: Props) {
+export function CalorieEstimator() {
   const [exercise, setExercise] = useState<ExerciseType>("squat")
   const [duration, setDuration] = useState(8)
   const [calories, setCalories] = useState<number | null>(null)
@@ -24,7 +20,7 @@ export function CalorieEstimator({ userId }: Props) {
     setLoading(true)
     setError(null)
     try {
-      const result = await api.estimateCalories(userId, {
+      const result = await api.estimateCalories({
         exercise,
         durationMin: duration,
       })

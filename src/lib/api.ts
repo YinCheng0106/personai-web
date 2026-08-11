@@ -5,6 +5,7 @@ import type {
   WorkoutRecordInput,
 } from "@/types/workout"
 import type { CalorieEstimateInput, InBody, InBodyInput } from "@/types/inbody"
+import { getAccessToken } from "@/lib/auth-client"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000"
 
@@ -19,11 +20,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await getAccessToken()
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
       ...(init?.headers ?? {}),
     },
   })
@@ -107,12 +109,12 @@ function normalizeInBody(item: InBodyWire): InBody {
 export const api = {
   serverHealth: () => request<{ status: string; detail: string }>("/server"),
 
-  async getWorkouts(userId: string) {
-    return (await request<WorkoutWire[]>(`/wk/${userId}`)).map(normalizeWorkout)
+  async getWorkouts() {
+    return (await request<WorkoutWire[]>("/wk/me")).map(normalizeWorkout)
   },
 
-  async getWorkoutSummary(userId: string): Promise<ExerciseSummary[]> {
-    return (await request<ExerciseSummaryWire[]>(`/wk/${userId}/summary`)).map(
+  async getWorkoutSummary(): Promise<ExerciseSummary[]> {
+    return (await request<ExerciseSummaryWire[]>("/wk/me/summary")).map(
       (item) => ({
         exercise: item.exercise_type,
         totalReps: item.total_reps,
@@ -123,20 +125,18 @@ export const api = {
     )
   },
 
-  async getDailySummary(userId: string): Promise<DailySummary[]> {
-    return (await request<DailySummaryWire[]>(`/wk/${userId}/daily`)).map(
-      (item) => ({
-        date: item.date,
-        totalReps: item.total_reps,
-        totalCalories: item.total_calories,
-        durationMin: item.total_duration_min,
-        workoutCount: item.workout_count,
-      })
-    )
+  async getDailySummary(): Promise<DailySummary[]> {
+    return (await request<DailySummaryWire[]>("/wk/me/daily")).map((item) => ({
+      date: item.date,
+      totalReps: item.total_reps,
+      totalCalories: item.total_calories,
+      durationMin: item.total_duration_min,
+      workoutCount: item.workout_count,
+    }))
   },
 
-  async postWorkoutRecord(userId: string, payload: WorkoutRecordInput) {
-    const item = await request<WorkoutWire>(`/wk/${userId}/record`, {
+  async postWorkoutRecord(payload: WorkoutRecordInput) {
+    const item = await request<WorkoutWire>("/wk/me/record", {
       method: "POST",
       body: JSON.stringify({
         exercise_type: payload.exercise,
@@ -151,12 +151,12 @@ export const api = {
     return normalizeWorkout(item)
   },
 
-  async getInBody(userId: string) {
-    return normalizeInBody(await request<InBodyWire>(`/inbody/${userId}`))
+  async getInBody() {
+    return normalizeInBody(await request<InBodyWire>("/inbody/me"))
   },
 
-  async postInBody(userId: string, payload: InBodyInput) {
-    const item = await request<InBodyWire>(`/inbody/${userId}`, {
+  async postInBody(payload: InBodyInput) {
+    const item = await request<InBodyWire>("/inbody/me", {
       method: "POST",
       body: JSON.stringify({
         height_cm: payload.heightCm,
@@ -173,14 +173,14 @@ export const api = {
     return normalizeInBody(item)
   },
 
-  estimateCalories(userId: string, payload: CalorieEstimateInput) {
+  estimateCalories(payload: CalorieEstimateInput) {
     return request<{
       exercise_type: string
       duration_min: number
       intensity: string
       mets: number
       calories_burned: number
-    }>(`/inbody/${userId}/calories`, {
+    }>("/inbody/me/calories", {
       method: "POST",
       body: JSON.stringify({
         exercise_type: payload.exercise,

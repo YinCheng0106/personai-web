@@ -88,7 +88,7 @@ function UserMenu() {
           className="flex h-8 items-center gap-2 rounded-full border border-border/60 bg-background pl-1 pr-1 sm:pr-2.5 text-xs font-medium transition-colors hover:bg-muted"
         >
           <Avatar className="size-6">
-            <AvatarImage src={user.image} alt={user.name} />
+            <AvatarImage src={user.image ?? undefined} alt={user.name} />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
           <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
@@ -97,7 +97,7 @@ function UserMenu() {
       <DropdownMenuContent align="end" className="w-56 rounded-xl">
         <DropdownMenuLabel className="px-3 py-2 flex items-center gap-2">
           <Avatar className="size-6">
-            <AvatarImage src={user.image} alt={user.name} />
+            <AvatarImage src={user.image ?? undefined} alt={user.name} />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
           <div>

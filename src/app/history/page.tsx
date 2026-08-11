@@ -42,9 +42,9 @@ export default function HistoryPage() {
       }
     })
     Promise.all([
-      api.getWorkouts(session.data.user.id),
-      api.getWorkoutSummary(session.data.user.id),
-      api.getDailySummary(session.data.user.id),
+      api.getWorkouts(),
+      api.getWorkoutSummary(),
+      api.getDailySummary(),
     ])
       .then(([nextWorkouts, nextSummary, nextDaily]) => {
         if (cancelled) return

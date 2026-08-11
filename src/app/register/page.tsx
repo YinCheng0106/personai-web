@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils"
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-function validateName(value: string): string | null {
+export function validateName(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed) return "請輸入顯示名稱。"
   if (trimmed.length < 2) return "顯示名稱至少需要 2 個字元。"
@@ -32,14 +32,14 @@ function validateName(value: string): string | null {
   return null
 }
 
-function validateEmail(value: string): string | null {
+export function validateEmail(value: string): string | null {
   const trimmed = value.trim()
   if (!trimmed) return "請輸入 Email。"
   if (!EMAIL_RE.test(trimmed)) return "Email 格式不正確，請確認後重新輸入。"
   return null
 }
 
-function validatePassword(value: string): string | null {
+export function validatePassword(value: string): string | null {
   if (!value) return "請輸入密碼。"
   if (value.length < 8) return "密碼至少需要 8 個字元。"
   if (!/[A-Za-z]/.test(value)) return "密碼需包含至少一個英文字母。"
@@ -47,7 +47,7 @@ function validatePassword(value: string): string | null {
   return null
 }
 
-function validateConfirm(password: string, confirm: string): string | null {
+export function validateConfirm(password: string, confirm: string): string | null {
   if (!confirm) return "請再次輸入密碼。"
   if (confirm !== password) return "兩次輸入的密碼不一致。"
   return null
@@ -129,7 +129,7 @@ function RegisterForm() {
     })
     setSubmitting(false)
     if (result.error) {
-      setError(result.error.message)
+      setError(result.error.message ?? "註冊失敗，請稍後再試。")
       return
     }
     router.replace(redirectTo)

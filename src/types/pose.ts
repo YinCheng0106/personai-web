@@ -17,6 +17,8 @@ export type AngleSet = {
 }
 
 export type PoseData = {
+  frameId: number
+  processingMs: number
   reps: number
   state: FsmState
   angles: AngleSet
@@ -27,6 +29,8 @@ export type PoseData = {
 }
 
 export type ServerFrame = {
+  frame_id: number
+  processing_ms: number
   rep_count: number
   state: string
   angles: Partial<{

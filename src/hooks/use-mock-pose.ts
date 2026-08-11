@@ -16,6 +16,8 @@ const POSSIBLE_ERRORS: Record<ExerciseType, string[]> = {
 }
 
 const IDLE_DATA: PoseData = {
+  frameId: 0,
+  processingMs: 0,
   reps: 0,
   state: "idle",
   angles: {
@@ -38,7 +40,9 @@ function angleFor(exercise: ExerciseType, phase: FsmState): number {
     case "descending":
       return base - 40 + Math.random() * 5
     case "bottom":
-      return exercise === "squat" ? 90 + Math.random() * 5 : 75 + Math.random() * 5
+      return exercise === "squat"
+        ? 90 + Math.random() * 5
+        : 75 + Math.random() * 5
     case "ascending":
       return base - 25 + Math.random() * 5
     default:
@@ -76,6 +80,8 @@ export function useMockPose({ exercise, active }: Options): PoseData {
       }
 
       setData({
+        frameId: Math.floor(performance.now() / 1000),
+        processingMs: 0,
         reps: reps.current,
         state,
         angles: {

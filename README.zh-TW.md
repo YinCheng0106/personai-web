@@ -13,7 +13,7 @@ PersonAI 是 AI 個人教練的網頁前端。它將即時相機姿勢分析流�
 - **訓練歷程** — 活動熱力圖、各動作摘要與依時序排列的訓練日誌。
 - **InBody 洞察** — BMI 與身體組成卡片，搭配用於規劃訓練的卡路里估算工具。
 - **主題切換** — 採用 `next-themes` 與 OKLCH 設計 token，支援淺色／深色模式。
-- **驗證準備就緒** — `better-auth` 已配置 PostgreSQL 並啟用 email/password（路由待串接）。
+- **正式身分驗證** — Better Auth 以 HttpOnly Cookie 維持 Email／密碼登入，並以短效 JWKS JWT 保護 FastAPI REST 與 WebSocket。
 - **在地化 UI** — 所有面向使用者的文案皆使用繁體中文（zh-TW）；後端 enum 會在邊緣透過正規的標籤對照表翻譯。
 
 ## 技術堆疊
@@ -31,8 +31,8 @@ PersonAI 是 AI 個人教練的網頁前端。它將即時相機姿勢分析流�
 
 - [Bun](https://bun.sh/) ≥ 1.0（npm/pnpm/yarn 亦可運作，但 `bun.lock` 是唯一可信來源）
 - Node.js ≥ 20（僅在不使用 Bun 時需要）
-- 執行中的 [PersonAI backend](https://github.com/YinCheng0106/personai-api) 提供即時姿勢分析與 REST 資料（選用 — 此應用程式內附 mock 資料）
-- PostgreSQL（僅在串接 `better-auth` 時需要）
+- 執行中的 [PersonAI backend](https://github.com/YinCheng0106/personai-api)，提供即時姿勢分析與 REST 資料
+- Better Auth 使用的 PostgreSQL（正式環境使用 Supabase Session Pooler）
 
 ### 安裝
 
@@ -61,6 +61,8 @@ cp .env.sample .env.local
 | `DATABASE_URL`          | `better-auth` 使用的 PostgreSQL 連線字串。                                  | —                        |
 | `BETTER_AUTH_SECRET`    | 用來簽署驗證 token 的 secret（以 `openssl rand -base64 32` 產生）。         | —                        |
 | `BETTER_AUTH_URL`       | 此應用程式的對外 base URL（例如 `http://localhost:3000`）。                 | —                        |
+| `AUTH_ISSUER`           | JWT 發行者，必須與 FastAPI 設定一致。                                       | `http://localhost:3000`  |
+| `AUTH_AUDIENCE`         | JWT 接收對象，必須與 FastAPI 設定一致。                                     | `personai-api`           |
 
 ### 可用的 Scripts
 
@@ -72,6 +74,9 @@ cp .env.sample .env.local
 | `bun run lint`       | 執行 ESLint（flat config、`eslint-config-next`）。       |
 | `bun run typecheck`  | 以 `tsc --noEmit` 進行型別檢查。                         |
 | `bun run format`     | 以 Prettier 格式化 `**/*.{ts,tsx}`。                     |
+| `bun run test`       | 執行 Vitest 元件與契約測試。                              |
+| `bun run test:e2e`   | 執行 Playwright 瀏覽器測試。                              |
+| `bun run auth:migrate` | 在 `personai_auth` 建立／更新 Better Auth 資料表。       |
 
 開發伺服器啟動後，請開啟 [http://localhost:3000](http://localhost:3000)。
 
@@ -83,10 +88,17 @@ bunx shadcn@latest add <component>
 
 元件會以 `radix-luma` 風格搭配 `neutral` base color 與 HugeIcons，加入到 `src/components/ui/`。
 
-### 從 Mock 切換到 Live 資料
+### 登入資料庫設定
 
-- **姿勢串流：** 在 `src/app/analyze/page.tsx` 中，將 `useMockPose` 替換為呼叫 `src/lib/socket.ts` 內 `connectAnalyzeSocket(...)` 的 `useEffect`。`PoseData` 結構完全相同 — 所有 snake/camel 的轉換都集中在 `normalizeFrame()` 中。
-- **REST 資料：** 將 `src/lib/mock-data.ts` 中的 `MOCK_*` import 換成 `src/lib/api.ts` 中對應的 helper。回應型別（`WorkoutRecord`、`DailySummary`、`ExerciseSummary`、`InBody`）一一對應。
+1. 在 Supabase 執行 `scripts/bootstrap-auth-schema.sql`，建立私有的 `personai_auth` schema。
+2. 執行 `bun run auth:migrate`，該 schema 內的資料表由 Better Auth 管理。
+3. FastAPI 的 issuer、audience 與 `/api/auth/jwks` 網址必須設定成相同值。
+
+REST 與姿勢分析頁目前已使用正式 API。舊 mock fixture 僅保留給離線 UI 開發，不會當作登入使用者的正式資料。
+
+### 部署前置條件
+
+NAS API 尚未具備 HTTPS/WSS 前，不公開 Vercel 前端。請依 `.env.production.example` 設定 Secret；資料庫密碼與 Better Auth secret 不可使用 `NEXT_PUBLIC_*`。
 
 ## 專案結構
 
