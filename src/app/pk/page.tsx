@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { CameraFrame } from "@/components/fitness/camera-frame";
 
@@ -8,6 +8,62 @@ export default function GamePKPage() {
   const [playerScore, setPlayerScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+
+  const wsRef = useRef<WebSocket | null>(null);
+
+  // 1. 初始化 WebSocket 連線
+  useEffect(() => {
+    // 建立與後端 PK WebSocket 的連線
+    const ws = new WebSocket("ws://localhost:8000/ws/pk");
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("WebSocket 已成功連線至 PK 伺服器");
+      setIsConnected(true);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        // 接收對手傳來的分數更新
+        if (data.type === "OPPONENT_SCORE") {
+          setOpponentScore(data.score);
+        }
+      } catch (error) {
+        console.error("解析 WebSocket 訊息失敗:", error);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket 連線已關閉");
+      setIsConnected(false);
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket 發生錯誤:", error);
+      setIsConnected(false);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
+
+  // 2. 點擊測試按鈕：自己 +1 分並透過 WebSocket 廣播給對手
+  const handleAddScore = () => {
+    const newScore = playerScore + 1;
+    setPlayerScore(newScore);
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "SCORE_UPDATE",
+          score: newScore,
+        })
+      );
+    }
+  };
 
   // 接收 CameraFrame 準備好的 Video 標籤
   const handleVideoReady = useCallback((video: HTMLVideoElement | null) => {
@@ -20,10 +76,21 @@ export default function GamePKPage() {
   return (
     <RequireAuth>
       <div className="min-h-screen bg-slate-900 text-white p-6 flex flex-col items-center">
-        {/* 頂部標題與計分板 */}
-        <h1 className="text-3xl font-bold mb-6 text-cyan-400">
-          1v1 實時動作 PK 對戰
-        </h1>
+        {/* 頂部標題與連線狀態 */}
+        <div className="flex items-center gap-3 mb-6">
+          <h1 className="text-3xl font-bold text-cyan-400">
+            1v1 實時動作 PK 對戰
+          </h1>
+          <span
+            className={`text-xs px-2.5 py-1 rounded-full border ${
+              isConnected
+                ? "bg-green-950/80 text-green-400 border-green-800"
+                : "bg-red-950/80 text-red-400 border-red-800"
+            }`}
+          >
+            {isConnected ? "WS 已連線" : "WS 離線"}
+          </span>
+        </div>
 
         <div className="flex justify-between items-center w-full max-w-4xl bg-slate-800 p-4 rounded-xl border border-slate-700 mb-6 shadow-lg">
           {/* 玩家 (你) */}
@@ -97,6 +164,8 @@ export default function GamePKPage() {
             </div>
           </div>
         </div>
+
+
       </div>
     </RequireAuth>
   );
