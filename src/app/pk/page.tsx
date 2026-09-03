@@ -1,12 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { RequireAuth } from "@/components/auth/require-auth";
 import { CameraFrame } from "@/components/fitness/camera-frame";
 
 export default function GamePKPage() {
   const [playerScore, setPlayerScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+
+  // 接收 CameraFrame 準備好的 Video 標籤
+  const handleVideoReady = useCallback((video: HTMLVideoElement | null) => {
+    setVideoElement(video);
+    if (video) {
+      console.log("相機影像已準備完成，可在此綁定 MediaPipe / AI 模型：", video);
+    }
+  }, []);
 
   return (
     <RequireAuth>
@@ -29,8 +38,13 @@ export default function GamePKPage() {
           </div>
 
           {/* VS 標誌 */}
-          <div className="text-3xl font-black italic text-red-500 animate-pulse">
-            VS
+          <div className="flex flex-col items-center">
+            <div className="text-3xl font-black italic text-red-500 animate-pulse">
+              VS
+            </div>
+            <div className="text-xs text-slate-400 mt-1">
+              {videoElement ? "相機正常運行中" : "相機連線中..."}
+            </div>
           </div>
 
           {/* 對手數據 */}
@@ -47,15 +61,15 @@ export default function GamePKPage() {
 
         {/* 畫面顯示區 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl">
-          {/* 左側：沿用專案原本的 CameraFrame 元件 (包含鏡頭與骨架) */}
+          {/* 左側： CameraFrame 元件 */}
           <div className="relative aspect-video bg-black rounded-xl border-2 border-cyan-500 overflow-hidden flex items-center justify-center shadow-2xl shadow-cyan-950/50">
-            <CameraFrame active={true} />
+            <CameraFrame active={true} onVideoReady={handleVideoReady} />
             <div className="absolute top-3 left-3 bg-cyan-600/80 backdrop-blur-md text-xs px-2.5 py-1 rounded-md font-medium z-10">
               本地 AI 骨架追蹤
             </div>
           </div>
 
-          {/* 右側：對手數據面板 (確保隱私，不傳視訊) */}
+          {/* 右側：對手數據面板 */}
           <div className="relative aspect-video bg-slate-800/80 rounded-xl border-2 border-red-500/50 p-6 flex flex-col justify-between shadow-2xl">
             <div className="flex justify-between items-center">
               <span className="text-sm font-semibold text-red-400">
