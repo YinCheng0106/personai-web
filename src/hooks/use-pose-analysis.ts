@@ -101,6 +101,7 @@ export function usePoseAnalysis({
     let animationFrame = 0
     let lastVideoTime = -1
     let lastSentAt = 0
+    let lastReceivedFrameId = -1
     queueMicrotask(() => {
       if (!cancelled) {
         setError(null)
@@ -127,7 +128,10 @@ export function usePoseAnalysis({
             if (!cancelled) setError(message)
           },
           onFrame: (frame) => {
-            if (!cancelled) setPose(frame)
+            if (!cancelled && frame.frameId > lastReceivedFrameId) {
+              lastReceivedFrameId = frame.frameId
+              setPose(frame)
+            }
           },
         })
         socketRef.current = socket

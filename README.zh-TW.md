@@ -8,7 +8,8 @@ PersonAI 是 AI 個人教練的網頁前端。它將即時相機姿勢分析流�
 
 ## 主要功能
 
-- **即時姿勢分析** — 透過 WebSocket 將相機畫面串流至 Python 後端，並以 HUD 顯示次數計數器、FSM 狀態、關節角度、卡路里估算與即時姿勢錯誤提示。
+- **即時姿勢分析** — 相機影像只在瀏覽器本機處理，透過 WebSocket 僅傳送 33 個姿勢關鍵點至 Python 後端，並以 HUD 顯示次數、FSM 狀態、關節角度、卡路里估算與即時姿勢錯誤提示。
+- **1v1 動作對戰** — 具身分驗證的雙人房沿用即時姿勢辨識流程，另一條 WebSocket 只交換準備狀態與動作次數。
 - **儀表板** — 一目了然的每日指標卡片、週活動圖表、目標進度與當日訓練清單。
 - **訓練歷程** — 活動熱力圖、各動作摘要與依時序排列的訓練日誌。
 - **InBody 洞察** — BMI 與身體組成卡片，搭配用於規劃訓練的卡路里估算工具。
@@ -110,6 +111,7 @@ personai-web/
 │   │   ├── layout.tsx            # Root layout (ThemeProvider + Navbar)
 │   │   ├── page.tsx              # Dashboard
 │   │   ├── analyze/              # Live camera + pose HUD
+│   │   ├── pk/                   # 具身分驗證的雙人動作對戰房
 │   │   ├── history/              # Heatmap + workout log
 │   │   ├── inbody/               # Body composition + calorie tools
 │   │   └── globals.css           # Tailwind v4 @theme tokens (OKLCH)

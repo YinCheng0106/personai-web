@@ -67,6 +67,11 @@ test("register, access protected content, and sign out", async ({ page }) => {
         bmi_category: "正常",
         body_fat_pct: 20,
         skeletal_muscle_mass_kg: 30,
+        age: 22,
+        gender: "male",
+        body_fat_mass_kg: 13,
+        total_body_water_kg: null,
+        visceral_fat_level: null,
         lean_body_mass_kg: 52,
         bmr_kcal_day: 1493.2,
         measured_at: new Date().toISOString(),
@@ -90,11 +95,19 @@ test("register, access protected content, and sign out", async ({ page }) => {
 
   await page.goto("/login?redirect=%2Finbody")
   await page.getByLabel("Email").fill(email)
-  await page.getByLabel("密碼").fill("Personai123!")
+  await page.getByLabel("密碼", { exact: true }).fill("Personai123!")
   await page.getByRole("button", { name: "登入", exact: true }).click()
   await expect(page).toHaveURL(/\/inbody$/)
 
-  await page.getByRole("button", { name: "儲存身體資料" }).click()
+  const [inbodyResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url() === "http://localhost:8000/inbody/me" &&
+        response.request().method() === "POST"
+    ),
+    page.getByRole("button", { name: "儲存身體資料" }).click(),
+  ])
+  expect(inbodyResponse.ok()).toBe(true)
   await expect(page.getByText("基礎代謝")).toBeVisible()
 
   await page.goto("/analyze")

@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { connectAnalyzeSocket, normalizeFrame } from "@/lib/socket"
+import {
+  connectAnalyzeSocket,
+  connectPKSocket,
+  normalizeFrame,
+} from "@/lib/socket"
 
 describe("pose socket contract", () => {
   it("normalizes frame identifiers, timing, and snake_case angles", () => {
@@ -42,6 +46,31 @@ describe("pose socket contract", () => {
 
     expect(constructor).toHaveBeenCalledWith(
       "ws://localhost:8000/ws/analyze/squat?weight_kg=70",
+      ["personai.v1", "header.payload.signature"]
+    )
+    expect(constructor.mock.calls[0][0]).not.toContain("signature")
+    vi.unstubAllGlobals()
+  })
+
+  it("authenticates the PK socket without putting the JWT in its URL", () => {
+    const constructor = vi.fn(function MockWebSocket(
+      this: Record<string, unknown>,
+      url: string,
+      protocols: string[]
+    ) {
+      this.url = url
+      this.protocols = protocols
+    })
+    vi.stubGlobal("WebSocket", constructor)
+
+    connectPKSocket("1234", "pushup", "header.payload.signature", {
+      onRoomState: vi.fn(),
+      onGameStart: vi.fn(),
+      onOpponentScore: vi.fn(),
+    })
+
+    expect(constructor).toHaveBeenCalledWith(
+      "ws://localhost:8000/ws/pk?room=1234&exercise_type=pushup",
       ["personai.v1", "header.payload.signature"]
     )
     expect(constructor.mock.calls[0][0]).not.toContain("signature")

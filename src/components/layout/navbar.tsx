@@ -5,13 +5,13 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  Settings,
   LayoutGrid,
   CalendarDays,
   Dumbbell,
   BicepsFlexed,
   LogIn,
   LogOut,
+  Swords,
   UserPlus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -36,6 +36,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "總覽", icon: LayoutGrid },
   { href: "/analyze", label: "即時分析", icon: Dumbbell },
+  { href: "/pk", label: "1v1 對戰", icon: Swords },
   { href: "/history", label: "訓練紀錄", icon: CalendarDays },
   { href: "/inbody", label: "身體組成", icon: BicepsFlexed },
 ]
@@ -45,7 +46,7 @@ function getInitials(name: string) {
   if (!trimmed) return "?"
   const parts = trimmed.split(/\s+/)
   if (parts.length >= 2) {
-    return (parts[0][0]).toUpperCase()
+    return parts[0][0].toUpperCase()
   }
   return trimmed.slice(0, 1).toUpperCase()
 }
@@ -61,7 +62,12 @@ function UserMenu() {
   if (!session.data) {
     return (
       <div className="flex items-center gap-1.5">
-        <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+        <Button
+          asChild
+          size="sm"
+          variant="ghost"
+          className="hidden sm:inline-flex"
+        >
           <Link href="/login">
             <LogIn size={14} />
             登入
@@ -85,35 +91,33 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex h-8 items-center gap-2 rounded-full border border-border/60 bg-background pl-1 pr-1 sm:pr-2.5 text-xs font-medium transition-colors hover:bg-muted"
+          className="flex h-8 items-center gap-2 rounded-full border border-border/60 bg-background pr-1 pl-1 text-xs font-medium transition-colors hover:bg-muted sm:pr-2.5"
         >
           <Avatar className="size-6">
             <AvatarImage src={user.image ?? undefined} alt={user.name} />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
-          <span className="hidden max-w-32 truncate sm:inline">{user.name}</span>
+          <span className="hidden max-w-32 truncate sm:inline">
+            {user.name}
+          </span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 rounded-xl">
-        <DropdownMenuLabel className="px-3 py-2 flex items-center gap-2">
+        <DropdownMenuLabel className="flex items-center gap-2 px-3 py-2">
           <Avatar className="size-6">
             <AvatarImage src={user.image ?? undefined} alt={user.name} />
             <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
           </Avatar>
           <div>
-            <p className="truncate text-sm font-medium text-foreground">{user.name}</p>
-            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+            <p className="truncate text-sm font-medium text-foreground">
+              {user.name}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {user.email}
+            </p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={async (e) => {
-            e.preventDefault()
-          }}
-        >
-          <Settings size={16} />
-          設定
-        </DropdownMenuItem>
         <DropdownMenuItem
           onSelect={async (e) => {
             e.preventDefault()
@@ -144,7 +148,9 @@ export function Navbar() {
           <nav className="hidden items-center gap-1 md:flex">
             {NAV_ITEMS.map((item) => {
               const active =
-                item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href)
               return (
                 <Link
                   key={item.href}
@@ -153,7 +159,7 @@ export function Navbar() {
                     "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
                     active
                       ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <item.icon size={16} />
@@ -170,10 +176,12 @@ export function Navbar() {
         </div>
       </div>
       {!isAuthRoute ? (
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-2 md:hidden">
+        <nav className="flex gap-1 overflow-x-auto px-3 pb-2 [scrollbar-width:none] md:hidden [&::-webkit-scrollbar]:hidden">
           {NAV_ITEMS.map((item) => {
             const active =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href)
             return (
               <Link
                 key={item.href}
@@ -182,7 +190,7 @@ export function Navbar() {
                   "inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium",
                   active
                     ? "bg-foreground text-background"
-                    : "bg-muted text-muted-foreground",
+                    : "bg-muted text-muted-foreground"
                 )}
               >
                 <item.icon size={14} />
