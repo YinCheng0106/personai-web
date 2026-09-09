@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authClient, useSession } from "@/lib/auth-client"
 import { cn } from "@/lib/utils"
+import { safeInternalRedirect } from "@/lib/redirect"
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -47,7 +48,10 @@ export function validatePassword(value: string): string | null {
   return null
 }
 
-export function validateConfirm(password: string, confirm: string): string | null {
+export function validateConfirm(
+  password: string,
+  confirm: string
+): string | null {
   if (!confirm) return "請再次輸入密碼。"
   if (confirm !== password) return "兩次輸入的密碼不一致。"
   return null
@@ -77,7 +81,7 @@ function RegisterForm() {
   const router = useRouter()
   const search = useSearchParams()
   const session = useSession()
-  const redirectTo = search.get("redirect") || "/"
+  const redirectTo = safeInternalRedirect(search.get("redirect"))
 
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
@@ -122,17 +126,22 @@ function RegisterForm() {
     setTouched({ name: true, email: true, password: true, confirm: true })
     if (hasAnyError) return
     setSubmitting(true)
-    const result = await authClient.signUp.email({
-      name: name.trim(),
-      email: email.trim(),
-      password,
-    })
-    setSubmitting(false)
-    if (result.error) {
-      setError(result.error.message ?? "註冊失敗，請稍後再試。")
-      return
+    try {
+      const result = await authClient.signUp.email({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+      })
+      if (result.error) {
+        setError(result.error.message ?? "註冊失敗，請稍後再試。")
+        return
+      }
+      router.replace(redirectTo)
+    } catch {
+      setError("目前無法連線至註冊服務，請稍後再試。")
+    } finally {
+      setSubmitting(false)
     }
-    router.replace(redirectTo)
   }
 
   const nameError = shownError("name")
@@ -165,7 +174,7 @@ function RegisterForm() {
               icon={UserIcon}
               size={16}
               strokeWidth={2}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               id="name"
@@ -196,7 +205,7 @@ function RegisterForm() {
               icon={Mail01Icon}
               size={16}
               strokeWidth={2}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               id="email"
@@ -227,7 +236,7 @@ function RegisterForm() {
               icon={LockPasswordIcon}
               size={16}
               strokeWidth={2}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               id="password"
@@ -239,7 +248,7 @@ function RegisterForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onBlur={() => markTouched("password")}
-              className="pl-9 pr-10"
+              className="pr-10 pl-9"
               disabled={submitting}
               aria-invalid={passwordError ? true : undefined}
               aria-describedby={
@@ -249,9 +258,8 @@ function RegisterForm() {
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute right-2 top-1/2 grid -translate-y-1/2 place-items-center rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="absolute top-1/2 right-2 grid -translate-y-1/2 place-items-center rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
               aria-label={showPassword ? "隱藏密碼" : "顯示密碼"}
-              tabIndex={-1}
             >
               <HugeiconsIcon
                 icon={showPassword ? ViewOffSlashIcon : ViewIcon}
@@ -267,7 +275,7 @@ function RegisterForm() {
                   key={i}
                   className={cn(
                     "h-full flex-1 rounded-full transition-colors",
-                    i <= strength ? STRENGTH_COLOR[strength] : "bg-muted",
+                    i <= strength ? STRENGTH_COLOR[strength] : "bg-muted"
                   )}
                 />
               ))}
@@ -294,7 +302,7 @@ function RegisterForm() {
               icon={LockPasswordIcon}
               size={16}
               strokeWidth={2}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
             />
             <Input
               id="confirm"
@@ -305,7 +313,7 @@ function RegisterForm() {
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               onBlur={() => markTouched("confirm")}
-              className="pl-9 pr-9"
+              className="pr-9 pl-9"
               disabled={submitting}
               aria-invalid={confirmError ? true : undefined}
               aria-describedby={confirmError ? "confirm-error" : undefined}
@@ -315,7 +323,7 @@ function RegisterForm() {
                 icon={CheckmarkCircle02Icon}
                 size={16}
                 strokeWidth={2}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-success"
+                className="absolute top-1/2 right-3 -translate-y-1/2 text-success"
               />
             ) : null}
           </div>
@@ -355,7 +363,7 @@ function RegisterForm() {
           {submitting ? "建立中…" : "建立帳號"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          建立帳號代表你同意 PersonAI 的服務條款與隱私權政策。
+          登入資訊用於保護你的訓練與身體組成紀錄。
         </p>
       </form>
     </AuthCard>

@@ -8,7 +8,8 @@ PersonAI is the web frontend for an AI personal trainer. It pairs a live camera-
 
 ## Key Features
 
-- **Live Pose Analysis** — Streams camera frames to a Python backend over WebSocket and renders a HUD with rep counter, FSM state, joint angles, calorie estimate, and real-time form-error callouts.
+- **Live Pose Analysis** — Processes camera video locally, streams only 33 pose landmarks to the Python backend, and renders a HUD with rep count, FSM state, joint angles, calorie estimate, and real-time form-error callouts.
+- **1v1 Exercise PK** — Authenticated two-player rooms reuse the live pose pipeline and exchange only readiness and rep-count state through a separate WebSocket.
 - **Dashboard** — Daily metric cards, weekly activity chart, goal progress, and today's workout list at a glance.
 - **Workout History** — Activity heatmap, per-exercise summaries, and a chronological workout log.
 - **InBody Insights** — BMI and body-composition cards plus a calorie estimator for planning sessions.
@@ -110,6 +111,7 @@ personai-web/
 │   │   ├── layout.tsx            # Root layout (ThemeProvider + Navbar)
 │   │   ├── page.tsx              # Dashboard
 │   │   ├── analyze/              # Live camera + pose HUD
+│   │   ├── pk/                   # Authenticated two-player exercise rooms
 │   │   ├── history/              # Heatmap + workout log
 │   │   ├── inbody/               # Body composition + calorie tools
 │   │   └── globals.css           # Tailwind v4 @theme tokens (OKLCH)

@@ -24,9 +24,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://personai:personai_test_only@127.0.0.1:5432/personai_test
       BETTER_AUTH_SECRET: ci-only-secret-at-least-32-characters-long
-      BETTER_AUTH_URL: http://127.0.0.1:3000
-      NEXT_PUBLIC_BETTER_AUTH_URL: http://127.0.0.1:3000
-      AUTH_ISSUER: http://127.0.0.1:3000
+      BETTER_AUTH_URL: http://localhost:3000
+      NEXT_PUBLIC_BETTER_AUTH_URL: http://localhost:3000
+      AUTH_ISSUER: http://localhost:3000
       AUTH_AUDIENCE: personai-api
       NEXT_PUBLIC_API_BASE: http://localhost:8000
       NEXT_PUBLIC_WS_BASE: ws://localhost:8000

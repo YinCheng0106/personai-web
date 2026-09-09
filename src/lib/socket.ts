@@ -32,6 +32,22 @@ export type AnalyzeSocketHandlers = {
   onServerError?: (message: string) => void
 }
 
+export type PKRoomState = {
+  playerCount: number
+  opponentReady: boolean
+  opponentScore: number
+  exercise: ExerciseType
+}
+
+export type PKSocketHandlers = {
+  onOpen?: () => void
+  onClose?: (event: CloseEvent) => void
+  onError?: () => void
+  onRoomState: (state: PKRoomState) => void
+  onGameStart: () => void
+  onOpponentScore: (score: number) => void
+}
+
 export function connectAnalyzeSocket(
   exercise: ExerciseType,
   weightKg: number,
@@ -53,6 +69,49 @@ export function connectAnalyzeSocket(
       handlers.onFrame(normalizeFrame(parsed))
     } catch {
       // ignore malformed frames
+    }
+  }
+  return ws
+}
+
+export function connectPKSocket(
+  room: string,
+  exercise: ExerciseType,
+  token: string,
+  handlers: PKSocketHandlers
+): WebSocket {
+  const query = new URLSearchParams({ room, exercise_type: exercise })
+  const ws = new WebSocket(`${WS_BASE}/ws/pk?${query}`, ["personai.v1", token])
+  ws.onopen = () => handlers.onOpen?.()
+  ws.onclose = (event) => handlers.onClose?.(event)
+  ws.onerror = () => handlers.onError?.()
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data) as Record<string, unknown>
+      if (data.type === "ROOM_STATE") {
+        if (
+          typeof data.player_count === "number" &&
+          typeof data.opponent_ready === "boolean" &&
+          typeof data.opponent_score === "number" &&
+          (data.exercise_type === "squat" || data.exercise_type === "pushup")
+        ) {
+          handlers.onRoomState({
+            playerCount: data.player_count,
+            opponentReady: data.opponent_ready,
+            opponentScore: data.opponent_score,
+            exercise: data.exercise_type,
+          })
+        }
+      } else if (data.type === "GAME_START") {
+        handlers.onGameStart()
+      } else if (
+        data.type === "OPPONENT_SCORE" &&
+        typeof data.score === "number"
+      ) {
+        handlers.onOpponentScore(data.score)
+      }
+    } catch {
+      // Ignore malformed server messages and keep the current room state.
     }
   }
   return ws

@@ -123,11 +123,13 @@ export default function InBodyPage() {
                 ? {
                     heightCm: profile.heightCm,
                     weightKg: profile.weightKg,
+                    age: profile.age,
+                    gender: profile.gender,
                     bodyFatPct: profile.bodyFatPct,
                     skeletalMuscleKg: profile.skeletalMuscleKg,
-                    bodyFatMassKg: Number(
-                      ((profile.weightKg * profile.bodyFatPct) / 100).toFixed(1)
-                    ),
+                    bodyFatMassKg: profile.bodyFatMassKg,
+                    totalBodyWaterKg: profile.totalBodyWaterKg,
+                    visceralFatLevel: profile.visceralFatLevel,
                   }
                 : undefined
             }

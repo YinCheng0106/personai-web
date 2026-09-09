@@ -31,9 +31,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {
-      detail?: string
+      detail?: unknown
     } | null
-    throw new ApiError(res.status, body?.detail ?? `API ${path} failed`)
+    const detail = typeof body?.detail === "string" ? body.detail : null
+    let message = "請求失敗，請稍後再試。"
+    if (res.status === 401) message = "登入已失效，請重新登入。"
+    else if (res.status === 403) message = "你沒有權限執行這項操作。"
+    else if (res.status === 404) message = detail ?? "找不到要求的資料。"
+    else if (res.status === 409) message = "資料狀態已變更，請重新整理後再試。"
+    else if (res.status === 422) message = "輸入資料格式不正確，請檢查後再試。"
+    else if (res.status === 429) message = "操作過於頻繁，請稍後再試。"
+    else if (res.status >= 500) message = "服務暫時無法使用，請稍後再試。"
+    throw new ApiError(res.status, message)
   }
   return (await res.json()) as T
 }
@@ -75,6 +84,11 @@ type InBodyWire = {
   bmi_category: string
   body_fat_pct: number
   skeletal_muscle_mass_kg: number
+  age: number
+  gender: "male" | "female"
+  body_fat_mass_kg: number
+  total_body_water_kg: number | null
+  visceral_fat_level: number | null
   lean_body_mass_kg: number
   bmr_kcal_day: number
   measured_at: string
@@ -100,6 +114,11 @@ function normalizeInBody(item: InBodyWire): InBody {
     bmiCategory: item.bmi_category,
     bodyFatPct: item.body_fat_pct,
     skeletalMuscleKg: item.skeletal_muscle_mass_kg,
+    age: item.age,
+    gender: item.gender,
+    bodyFatMassKg: item.body_fat_mass_kg,
+    totalBodyWaterKg: item.total_body_water_kg ?? undefined,
+    visceralFatLevel: item.visceral_fat_level ?? undefined,
     leanBodyMassKg: item.lean_body_mass_kg,
     bmr: item.bmr_kcal_day,
     measuredAt: item.measured_at,

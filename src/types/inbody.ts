@@ -3,6 +3,11 @@ export type InBody = {
   weightKg: number
   bodyFatPct: number
   skeletalMuscleKg: number
+  age: number
+  gender: "male" | "female"
+  bodyFatMassKg: number
+  totalBodyWaterKg?: number
+  visceralFatLevel?: number
   bmr: number
   bmi: number
   bmiCategory: string
