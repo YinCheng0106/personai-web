@@ -151,7 +151,11 @@ export default function GamePKPage() {
   )
 
   useEffect(() => {
-    if (gameState !== "playing" || pose.reps <= lastSentScoreRef.current) {
+    if (
+      gameState !== "playing" ||
+      pose.trackingState !== "ACTIVE" ||
+      pose.reps <= lastSentScoreRef.current
+    ) {
       return
     }
     const socket = socketRef.current
@@ -164,7 +168,7 @@ export default function GamePKPage() {
       socket.send(JSON.stringify({ type: "SCORE_UPDATE", score }))
     }
     lastSentScoreRef.current = pose.reps
-  }, [gameState, pose.reps])
+  }, [gameState, pose.reps, pose.trackingState])
 
   function toggleReady() {
     const socket = socketRef.current
@@ -388,7 +392,10 @@ export default function GamePKPage() {
                         : "正在啟動姿勢辨識…")}
                   </CardContent>
                 </Card>
-                <ErrorList errors={pose.errors} />
+                <ErrorList
+                  errors={pose.formErrors}
+                  isAnalyzing={pose.trackingState === "ACTIVE"}
+                />
               </div>
             </div>
           ) : null}

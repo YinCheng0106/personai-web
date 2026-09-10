@@ -8,16 +8,22 @@ export function formatCalories(value: number): string {
   return `${value.toFixed(1)} kcal`
 }
 
-export function formatAngle(value: number): string {
-  return `${Math.round(value)}°`
+export function formatAngle(value: number | null): string {
+  return value === null ? "—" : `${Math.round(value)}°`
 }
 
 export function formatDateLabel(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "short" })
+  return d.toLocaleDateString("zh-TW", {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  })
 }
 
-export function bmiCategory(bmi: number): "underweight" | "normal" | "overweight" | "obese" {
+export function bmiCategory(
+  bmi: number
+): "underweight" | "normal" | "overweight" | "obese" {
   if (bmi < 18.5) return "underweight"
   if (bmi < 24) return "normal"
   if (bmi < 27) return "overweight"

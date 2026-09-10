@@ -4,20 +4,24 @@ const WS_BASE = process.env.NEXT_PUBLIC_WS_BASE ?? "ws://localhost:8000"
 
 export function normalizeFrame(frame: ServerFrame): PoseData {
   const a = frame.angles ?? {}
+  const angle = (value: number | null | undefined) => value ?? null
   return {
     frameId: frame.frame_id,
     processingMs: frame.processing_ms,
     reps: frame.rep_count,
     state: (frame.state.toLowerCase() as PoseData["state"]) ?? "idle",
     angles: {
-      leftKnee: a.left_knee ?? 0,
-      rightKnee: a.right_knee ?? 0,
-      leftHip: a.left_hip ?? a.left_body ?? 0,
-      rightHip: a.right_hip ?? a.right_body ?? 0,
-      leftElbow: a.left_elbow ?? 0,
-      rightElbow: a.right_elbow ?? 0,
+      leftKnee: angle(a.left_knee),
+      rightKnee: angle(a.right_knee),
+      leftHip: angle(a.left_hip ?? a.left_body),
+      rightHip: angle(a.right_hip ?? a.right_body),
+      leftElbow: angle(a.left_elbow),
+      rightElbow: angle(a.right_elbow),
     },
-    errors: frame.errors ?? [],
+    formErrors: frame.form_errors ?? frame.errors ?? [],
+    trackingHints: frame.tracking_hints ?? [],
+    trackingState:
+      frame.tracking_state ?? (frame.is_visible ? "ACTIVE" : "PAUSED"),
     confidence: frame.confidence,
     isVisible: frame.is_visible,
     calories: frame.calories,

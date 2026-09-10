@@ -72,10 +72,10 @@ export default function AnalyzePage() {
   }, [running])
 
   useEffect(() => {
-    const hasErrors = pose.errors.length > 0
+    const hasErrors = pose.formErrors.length > 0
     if (running && hasErrors && !hadErrors.current) errorEvents.current += 1
     hadErrors.current = hasErrors
-  }, [pose.errors, running])
+  }, [pose.formErrors, running])
 
   function startTraining() {
     setDuration(0)
@@ -207,7 +207,10 @@ export default function AnalyzePage() {
               angles={pose.angles}
               highlight={HIGHLIGHTS[exercise]}
             />
-            <ErrorList errors={pose.errors} />
+            <ErrorList
+              errors={pose.formErrors}
+              isAnalyzing={pose.trackingState === "ACTIVE"}
+            />
           </div>
         </div>
       </RequireAuth>

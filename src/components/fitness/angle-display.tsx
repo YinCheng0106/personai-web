@@ -26,10 +26,18 @@ export function AngleDisplay({ angles, highlight }: Props) {
       <CardContent className="space-y-3">
         {highlight.map((key) => {
           const value = angles[key]
-          const pct = Math.max(0, Math.min(100, ((value - 60) / (180 - 60)) * 100))
+          const pct =
+            value === null
+              ? 0
+              : Math.max(0, Math.min(100, ((value - 60) / (180 - 60)) * 100))
           return (
-            <div key={key} className="grid grid-cols-[3.5rem_1fr_3rem] items-center gap-3">
-              <span className="text-xs text-muted-foreground">{LABELS[key]}</span>
+            <div
+              key={key}
+              className="grid grid-cols-[3.5rem_1fr_3rem] items-center gap-3"
+            >
+              <span className="text-xs text-muted-foreground">
+                {LABELS[key]}
+              </span>
               <ProgressBar value={pct} tone="primary" />
               <span className="text-right text-sm font-semibold tabular-nums">
                 {formatAngle(value)}
