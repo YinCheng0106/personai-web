@@ -48,13 +48,14 @@ describe("pose socket contract", () => {
       tracking_state: "PAUSED",
       confidence: 0.4,
       is_visible: false,
-      calories: 1.2,
+      calories: null,
     })
 
     expect(result.angles.leftKnee).toBeNull()
     expect(result.formErrors).toEqual([])
     expect(result.trackingHints).toEqual(["SQUAT_KNEES_NOT_VISIBLE"])
     expect(result.trackingState).toBe("PAUSED")
+    expect(result.calories).toBeNull()
   })
 
   it("passes the JWT in Sec-WebSocket-Protocol instead of the URL", () => {
@@ -68,15 +69,16 @@ describe("pose socket contract", () => {
     })
     vi.stubGlobal("WebSocket", constructor)
 
-    connectAnalyzeSocket("squat", 70, "header.payload.signature", {
+    connectAnalyzeSocket("squat", "header.payload.signature", {
       onFrame: vi.fn(),
     })
 
     expect(constructor).toHaveBeenCalledWith(
-      "ws://localhost:8000/ws/analyze/squat?weight_kg=70",
+      "ws://localhost:8000/ws/analyze/squat",
       ["personai.v1", "header.payload.signature"]
     )
     expect(constructor.mock.calls[0][0]).not.toContain("signature")
+    expect(constructor.mock.calls[0][0]).not.toContain("weight_kg")
     vi.unstubAllGlobals()
   })
 

@@ -54,11 +54,10 @@ export type PKSocketHandlers = {
 
 export function connectAnalyzeSocket(
   exercise: ExerciseType,
-  weightKg: number,
   token: string,
   handlers: AnalyzeSocketHandlers
 ): WebSocket {
-  const url = `${WS_BASE}/ws/analyze/${exercise}?weight_kg=${weightKg}`
+  const url = `${WS_BASE}/ws/analyze/${exercise}`
   const ws = new WebSocket(url, ["personai.v1", token])
   ws.onopen = () => handlers.onOpen?.()
   ws.onclose = () => handlers.onClose?.()

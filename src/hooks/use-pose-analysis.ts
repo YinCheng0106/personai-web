@@ -34,7 +34,7 @@ export const EMPTY_POSE: PoseData = {
   trackingState: "ACQUIRING",
   confidence: 0,
   isVisible: false,
-  calories: 0,
+  calories: null,
 }
 
 export type PoseAnalysisStatus =
@@ -71,16 +71,10 @@ function getPoseLandmarker() {
 type Options = {
   active: boolean
   exercise: ExerciseType
-  weightKg: number
   video: HTMLVideoElement | null
 }
 
-export function usePoseAnalysis({
-  active,
-  exercise,
-  weightKg,
-  video,
-}: Options) {
+export function usePoseAnalysis({ active, exercise, video }: Options) {
   const [pose, setPose] = useState<PoseData>(EMPTY_POSE)
   const [status, setStatus] = useState<PoseAnalysisStatus>("idle")
   const [error, setError] = useState<string | null>(null)
@@ -117,7 +111,7 @@ export function usePoseAnalysis({
     void getAccessToken()
       .then((token) => {
         if (cancelled) return
-        socket = connectAnalyzeSocket(exercise, weightKg, token, {
+        socket = connectAnalyzeSocket(exercise, token, {
           onOpen: () => {
             if (!cancelled) setStatus("live")
           },
@@ -201,7 +195,7 @@ export function usePoseAnalysis({
       socket?.close()
       if (socketRef.current === socket) socketRef.current = null
     }
-  }, [active, exercise, video, weightKg])
+  }, [active, exercise, video])
 
   return { pose, status: active ? status : "idle", error, reset }
 }

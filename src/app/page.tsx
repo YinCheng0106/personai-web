@@ -12,7 +12,6 @@ import {
 } from "@hugeicons/core-free-icons"
 
 import { RequireAuth } from "@/components/auth/require-auth"
-import { GoalProgressCard } from "@/components/dashboard/goal-progress"
 import { PostureQuality } from "@/components/dashboard/posture-quality"
 import { TodayWorkoutList } from "@/components/dashboard/today-workout-list"
 import { WeeklyChart } from "@/components/dashboard/weekly-chart"
@@ -21,7 +20,8 @@ import { Button } from "@/components/ui/button"
 import { MetricCard } from "@/components/ui/metric-card"
 import { api } from "@/lib/api"
 import { useSession } from "@/lib/auth-client"
-import type { DailySummary, GoalProgress, WorkoutRecord } from "@/types/workout"
+import { workoutCalorieCoverage } from "@/lib/calorie-coverage"
+import type { DailySummary, WorkoutRecord } from "@/types/workout"
 
 function dateKey(date: Date) {
   return date.toISOString().slice(0, 10)
@@ -77,16 +77,14 @@ export default function DashboardPage() {
           totalCalories: 0,
           durationMin: 0,
           workoutCount: 0,
+          calorieWorkoutCount: 0,
         }
       )
     })
   }, [daily])
 
   const todayWorkouts = workouts.filter((item) => isToday(item.performedAt))
-  const todayCalories = todayWorkouts.reduce(
-    (sum, item) => sum + item.calories,
-    0
-  )
+  const todayCalorieCoverage = workoutCalorieCoverage(todayWorkouts)
   const todayReps = todayWorkouts.reduce((sum, item) => sum + item.reps, 0)
   const todayDuration = todayWorkouts.reduce(
     (sum, item) => sum + item.durationSec,
@@ -98,34 +96,6 @@ export default function DashboardPage() {
           workouts.length
       )
     : 0
-  const weeklyTotals = weekly.reduce(
-    (totals, item) => ({
-      reps: totals.reps + item.totalReps,
-      duration: totals.duration + item.durationMin,
-      calories: totals.calories + item.totalCalories,
-    }),
-    { reps: 0, duration: 0, calories: 0 }
-  )
-  const goals: GoalProgress[] = [
-    {
-      label: "本週訓練次數",
-      current: weeklyTotals.reps,
-      target: 200,
-      unit: "下",
-    },
-    {
-      label: "本週訓練時間",
-      current: Math.round(weeklyTotals.duration),
-      target: 150,
-      unit: "分",
-    },
-    {
-      label: "本週燃燒卡路里",
-      current: Math.round(weeklyTotals.calories),
-      target: 1200,
-      unit: "kcal",
-    },
-  ]
 
   return (
     <PageContainer
@@ -164,9 +134,18 @@ export default function DashboardPage() {
             }
           />
           <MetricCard
-            label="今日燃燒"
-            value={Math.round(todayCalories)}
-            unit="kcal"
+            label="今日熱量估算"
+            value={
+              todayCalorieCoverage.calories === null
+                ? "—"
+                : Math.round(todayCalorieCoverage.calories)
+            }
+            unit={todayCalorieCoverage.calories === null ? undefined : "kcal"}
+            delta={
+              todayCalorieCoverage.calories === null
+                ? { value: "部分訓練缺少體重資料", tone: "neutral" }
+                : undefined
+            }
             icon={<HugeiconsIcon icon={FireIcon} size={16} strokeWidth={2} />}
           />
           <MetricCard
@@ -190,9 +169,8 @@ export default function DashboardPage() {
           </div>
           <PostureQuality score={avgFormScore} />
         </div>
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="mt-6">
           <TodayWorkoutList records={todayWorkouts} />
-          <GoalProgressCard goals={goals} />
         </div>
       </RequireAuth>
     </PageContainer>

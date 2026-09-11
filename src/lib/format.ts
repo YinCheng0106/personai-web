@@ -4,8 +4,8 @@ export function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`
 }
 
-export function formatCalories(value: number): string {
-  return `${value.toFixed(1)} kcal`
+export function formatCalories(value: number | null): string {
+  return value === null ? "未估算" : `${value.toFixed(1)} kcal`
 }
 
 export function formatAngle(value: number | null): string {
@@ -19,18 +19,4 @@ export function formatDateLabel(iso: string): string {
     day: "numeric",
     weekday: "short",
   })
-}
-
-export function bmiCategory(
-  bmi: number
-): "underweight" | "normal" | "overweight" | "obese" {
-  if (bmi < 18.5) return "underweight"
-  if (bmi < 24) return "normal"
-  if (bmi < 27) return "overweight"
-  return "obese"
-}
-
-export function calcBmi(weightKg: number, heightCm: number): number {
-  const m = heightCm / 100
-  return weightKg / (m * m)
 }

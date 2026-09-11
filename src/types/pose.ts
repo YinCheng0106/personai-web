@@ -29,7 +29,7 @@ export type PoseData = {
   trackingState: TrackingState
   confidence: number
   isVisible: boolean
-  calories: number
+  calories: number | null
 }
 
 export type ServerFrame = {
@@ -53,7 +53,7 @@ export type ServerFrame = {
   tracking_state?: TrackingState
   confidence: number
   is_visible: boolean
-  calories: number
+  calories: number | null
 }
 
 export const EXERCISE_LABEL: Record<ExerciseType, string> = {

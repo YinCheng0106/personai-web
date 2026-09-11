@@ -363,7 +363,7 @@ function RegisterForm() {
           {submitting ? "建立中…" : "建立帳號"}
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          登入資訊用於保護你的訓練與身體組成紀錄。
+          登入資訊用於保護你的訓練與身體資料。
         </p>
       </form>
     </AuthCard>

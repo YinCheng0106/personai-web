@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { DailySummary } from "@/types/workout"
+import { dailyCalorieCoverage } from "@/lib/calorie-coverage"
 
 type Props = {
   data: DailySummary[]
@@ -10,7 +11,7 @@ const WEEK_LABEL = ["日", "一", "二", "三", "四", "五", "六"]
 export function WeeklyChart({ data }: Props) {
   const max = Math.max(1, ...data.map((d) => d.totalReps))
   const totalReps = data.reduce((s, d) => s + d.totalReps, 0)
-  const totalCal = data.reduce((s, d) => s + d.totalCalories, 0)
+  const calorieCoverage = dailyCalorieCoverage(data)
   return (
     <Card>
       <CardHeader>
@@ -19,8 +20,14 @@ export function WeeklyChart({ data }: Props) {
           <div className="text-right">
             <div className="text-xs text-muted-foreground">本週總量</div>
             <div className="text-sm font-semibold tabular-nums">
-              {totalReps} 下 · {totalCal} kcal
+              {totalReps} 下 · {calorieCoverage.calories ?? "—"}
+              {calorieCoverage.calories === null ? "" : " kcal"}
             </div>
+            {calorieCoverage.calories === null ? (
+              <div className="text-[10px] text-muted-foreground">
+                部分訓練缺少體重資料
+              </div>
+            ) : null}
           </div>
         </div>
       </CardHeader>
@@ -40,7 +47,7 @@ export function WeeklyChart({ data }: Props) {
                     style={{ height: `${Math.max(pct, 4)}%` }}
                   />
                 </div>
-                <div className="text-[10px] font-medium tabular-nums text-muted-foreground">
+                <div className="text-[10px] font-medium text-muted-foreground tabular-nums">
                   {WEEK_LABEL[date.getDay()]}
                 </div>
               </div>

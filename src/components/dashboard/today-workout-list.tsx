@@ -1,9 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { HugeiconsIcon } from "@hugeicons/react"
-import { WorkoutSquatsIcon, WorkoutWarmUpIcon } from "@hugeicons/core-free-icons"
+import {
+  WorkoutSquatsIcon,
+  WorkoutWarmUpIcon,
+} from "@hugeicons/core-free-icons"
 import { EXERCISE_LABEL, type ExerciseType } from "@/types/pose"
-import { formatDuration } from "@/lib/format"
+import { formatCalories, formatDuration } from "@/lib/format"
 import type { WorkoutRecord } from "@/types/workout"
 
 type Props = {
@@ -34,7 +37,11 @@ export function TodayWorkoutList({ records }: Props) {
                 className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
               >
                 <span className="grid h-10 w-10 place-items-center rounded-2xl bg-muted text-muted-foreground">
-                  <HugeiconsIcon icon={ICON[r.exercise]} size={18} strokeWidth={2} />
+                  <HugeiconsIcon
+                    icon={ICON[r.exercise]}
+                    size={18}
+                    strokeWidth={2}
+                  />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -46,7 +53,8 @@ export function TodayWorkoutList({ records }: Props) {
                     </Badge>
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                    {r.reps} 下 · {formatDuration(r.durationSec)} · {r.calories} kcal
+                    {r.reps} 下 · {formatDuration(r.durationSec)} ·{" "}
+                    {formatCalories(r.calories)}
                   </div>
                 </div>
                 <div className="text-right text-[11px] text-muted-foreground tabular-nums">

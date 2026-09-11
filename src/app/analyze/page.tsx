@@ -49,7 +49,6 @@ export default function AnalyzePage() {
   const session = useSession()
   const [video, setVideo] = useState<HTMLVideoElement | null>(null)
   const [exercise, setExercise] = useState<ExerciseType>("squat")
-  const [weightKg, setWeightKg] = useState(70)
   const [running, setRunning] = useState(false)
   const [duration, setDuration] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -57,7 +56,6 @@ export default function AnalyzePage() {
   const { pose, status, error, reset } = usePoseAnalysis({
     active: running,
     exercise,
-    weightKg,
     video,
   })
 
@@ -169,21 +167,9 @@ export default function AnalyzePage() {
                   onChange={setExercise}
                   disabled={running}
                 />
-                <label className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-muted-foreground">體重（kg）</span>
-                  <input
-                    type="number"
-                    min={20}
-                    max={300}
-                    step={0.5}
-                    value={weightKg}
-                    disabled={running}
-                    onChange={(event) =>
-                      setWeightKg(Number(event.target.value))
-                    }
-                    className="h-9 w-24 rounded-xl border border-border bg-background px-3 text-right"
-                  />
-                </label>
+                <p className="text-xs text-muted-foreground">
+                  熱量會依已儲存的基本資料估算；未提供體重仍可照常進行分析與儲存訓練。
+                </p>
                 <div className="text-xs text-muted-foreground">
                   {STATUS_LABEL[status]}
                   {error ? (
