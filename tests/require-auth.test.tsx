@@ -27,3 +27,10 @@ describe("RequireAuth", () => {
     expect(screen.getByText("private")).toBeInTheDocument()
   })
 })
+
+it("does not flash private content or sign-in actions while session resolution is pending", () => {
+  useSession.mockReturnValue({ data: null, isPending: true })
+  render(<RequireAuth>private</RequireAuth>)
+  expect(screen.queryByText("private")).not.toBeInTheDocument()
+  expect(screen.queryByRole("link", { name: "登入" })).not.toBeInTheDocument()
+})

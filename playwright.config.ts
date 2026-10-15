@@ -2,9 +2,14 @@ import { defineConfig, devices } from "@playwright/test"
 
 export default defineConfig({
   testDir: "./e2e",
+  outputDir: "test-results/playwright-artifacts",
   fullyParallel: false,
   retries: process.env.CI ? 2 : 0,
-  reporter: "html",
+  reporter: [
+    ["list"],
+    ["html", { open: "never" }],
+    ["junit", { outputFile: "test-results/playwright.xml" }],
+  ],
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",

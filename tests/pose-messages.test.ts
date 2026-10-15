@@ -25,3 +25,38 @@ describe("pose observation messages", () => {
     expect("keypoints" in message && message.keypoints).toHaveLength(33)
   })
 })
+
+it.each([0, 1, 32, 34])(
+  "treats %s landmarks as pose_missing without partial keypoints",
+  (count) => {
+    const message = createPoseObservation(
+      10,
+      1,
+      Array.from({ length: count }, () => ({ x: 0, y: 0 }))
+    )
+    expect(message).toEqual({
+      kind: "pose_missing",
+      frame_id: 10,
+      timestamp: 1,
+    })
+  }
+)
+
+it("preserves zero coordinates and defaults absent z/visibility without adding video data", () => {
+  const message = createPoseObservation(
+    11,
+    2,
+    Array.from({ length: 33 }, () => ({ x: 0, y: 0 }))
+  )
+  expect(message).toEqual({
+    kind: "landmarks",
+    frame_id: 11,
+    timestamp: 2,
+    keypoints: Array.from({ length: 33 }, () => ({
+      x: 0,
+      y: 0,
+      z: 0,
+      visibility: 0,
+    })),
+  })
+})
