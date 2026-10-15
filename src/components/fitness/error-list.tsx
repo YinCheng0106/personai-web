@@ -1,22 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  CircleCheck,
-  CircleAlert,
-} from "lucide-react"
+import { CircleCheck, CircleAlert } from "lucide-react"
 import { FORM_ERROR_LABEL } from "@/lib/constants"
 
 type Props = {
   errors: string[]
+  isAnalyzing?: boolean
 }
 
-export function ErrorList({ errors }: Props) {
+export function ErrorList({ errors, isAnalyzing = true }: Props) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>姿勢提醒</CardTitle>
       </CardHeader>
       <CardContent>
-        {errors.length === 0 ? (
+        {!isAnalyzing ? (
+          <div className="rounded-xl bg-muted px-3 py-2 text-sm font-medium text-muted-foreground">
+            目前暫停姿勢判定，追蹤恢復後會繼續分析。
+          </div>
+        ) : errors.length === 0 ? (
           <div className="flex items-center gap-2 rounded-xl bg-success/10 px-3 py-2 text-success">
             <CircleCheck size={16} strokeWidth={2} />
             <span className="text-sm font-medium">姿勢標準，繼續保持！</span>
@@ -28,7 +30,11 @@ export function ErrorList({ errors }: Props) {
                 key={err}
                 className="flex items-start gap-2 rounded-xl bg-warning/10 px-3 py-2 text-warning-foreground"
               >
-                <CircleAlert size={16} strokeWidth={2} className="mt-0.5 shrink-0 text-warning" />
+                <CircleAlert
+                  size={16}
+                  strokeWidth={2}
+                  className="mt-0.5 shrink-0 text-warning"
+                />
                 <span className="text-sm font-medium text-warning">
                   {FORM_ERROR_LABEL[err] ?? err}
                 </span>

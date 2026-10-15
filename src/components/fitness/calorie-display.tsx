@@ -5,12 +5,17 @@ import { formatCalories, formatDuration } from "@/lib/format"
 
 type Props = {
   reps: number
-  calories: number
+  calories: number | null
   durationSec: number
   confidence: number
 }
 
-export function CalorieDisplay({ reps, calories, durationSec, confidence }: Props) {
+export function CalorieDisplay({
+  reps,
+  calories,
+  durationSec,
+  confidence,
+}: Props) {
   const items = [
     {
       label: "燃燒",
@@ -54,9 +59,13 @@ export function CalorieDisplay({ reps, calories, durationSec, confidence }: Prop
                   strokeWidth={2}
                   className={item.tone}
                 />
-                <span className="text-[11px] text-muted-foreground">{item.label}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {item.label}
+                </span>
               </div>
-              <div className="text-sm font-semibold tabular-nums">{item.value}</div>
+              <div className="text-sm font-semibold tabular-nums">
+                {item.value}
+              </div>
             </div>
           ))}
         </div>

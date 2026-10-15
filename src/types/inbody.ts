@@ -32,13 +32,3 @@ export type CalorieEstimateInput = {
   durationMin: number
   intensity?: "light" | "moderate" | "vigorous"
 }
-
-export type BmiCategory = "underweight" | "normal" | "overweight" | "obese"
-
-export type BodyComposition = {
-  label: string
-  current: number
-  target: number
-  unit: string
-  tone: "neutral" | "good" | "warning" | "danger"
-}

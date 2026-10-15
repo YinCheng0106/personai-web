@@ -17,6 +17,9 @@ describe("pose socket contract", () => {
       errors: [],
       confidence: 0.9,
       is_visible: true,
+      tracking_state: "ACTIVE",
+      tracking_hints: [],
+      form_errors: [],
       calories: 1.2,
     })
 
@@ -26,7 +29,33 @@ describe("pose socket contract", () => {
       reps: 3,
       state: "bottom",
       angles: { leftKnee: 91, rightKnee: 93 },
+      trackingState: "ACTIVE",
+      formErrors: [],
+      trackingHints: [],
     })
+  })
+
+  it("keeps unavailable angles null and separates tracking hints", () => {
+    const result = normalizeFrame({
+      frame_id: 13,
+      processing_ms: 1,
+      rep_count: 3,
+      state: "IDLE",
+      angles: { left_knee: null },
+      errors: [],
+      form_errors: [],
+      tracking_hints: ["SQUAT_KNEES_NOT_VISIBLE"],
+      tracking_state: "PAUSED",
+      confidence: 0.4,
+      is_visible: false,
+      calories: null,
+    })
+
+    expect(result.angles.leftKnee).toBeNull()
+    expect(result.formErrors).toEqual([])
+    expect(result.trackingHints).toEqual(["SQUAT_KNEES_NOT_VISIBLE"])
+    expect(result.trackingState).toBe("PAUSED")
+    expect(result.calories).toBeNull()
   })
 
   it("passes the JWT in Sec-WebSocket-Protocol instead of the URL", () => {
@@ -40,15 +69,16 @@ describe("pose socket contract", () => {
     })
     vi.stubGlobal("WebSocket", constructor)
 
-    connectAnalyzeSocket("squat", 70, "header.payload.signature", {
+    connectAnalyzeSocket("squat", "header.payload.signature", {
       onFrame: vi.fn(),
     })
 
     expect(constructor).toHaveBeenCalledWith(
-      "ws://localhost:8000/ws/analyze/squat?weight_kg=70",
+      "ws://localhost:8000/ws/analyze/squat",
       ["personai.v1", "header.payload.signature"]
     )
     expect(constructor.mock.calls[0][0]).not.toContain("signature")
+    expect(constructor.mock.calls[0][0]).not.toContain("weight_kg")
     vi.unstubAllGlobals()
   })
 

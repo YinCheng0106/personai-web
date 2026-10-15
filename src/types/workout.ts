@@ -5,7 +5,7 @@ export type WorkoutRecord = {
   exercise: ExerciseType
   reps: number
   durationSec: number
-  calories: number
+  calories: number | null
   formScore: number
   performedAt: string
 }
@@ -15,7 +15,7 @@ export type WorkoutRecordInput = {
   reps: number
   sets?: number
   durationSec: number
-  calories: number
+  calories: number | null
   averageIntensity?: "light" | "moderate" | "vigorous"
   errorsCount: number
 }
@@ -23,22 +23,17 @@ export type WorkoutRecordInput = {
 export type DailySummary = {
   date: string
   totalReps: number
-  totalCalories: number
+  totalCalories: number | null
   durationMin: number
   workoutCount: number
+  calorieWorkoutCount: number
 }
 
 export type ExerciseSummary = {
   exercise: ExerciseType
   totalReps: number
-  totalCalories: number
+  totalCalories: number | null
   sessions: number
+  calorieSessions: number
   avgFormScore: number
-}
-
-export type GoalProgress = {
-  label: string
-  current: number
-  target: number
-  unit: string
 }

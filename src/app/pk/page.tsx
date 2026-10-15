@@ -40,7 +40,6 @@ export default function GamePKPage() {
   const [roomId, setRoomId] = useState("")
   const [inputRoomId, setInputRoomId] = useState("")
   const [exercise, setExercise] = useState<ExerciseType>("squat")
-  const [weightKg, setWeightKg] = useState(70)
   const [isReady, setIsReady] = useState(false)
   const [opponentReady, setOpponentReady] = useState(false)
   const [playerCount, setPlayerCount] = useState(0)
@@ -58,7 +57,6 @@ export default function GamePKPage() {
   } = usePoseAnalysis({
     active: gameState === "playing",
     exercise,
-    weightKg,
     video,
   })
 
@@ -151,7 +149,11 @@ export default function GamePKPage() {
   )
 
   useEffect(() => {
-    if (gameState !== "playing" || pose.reps <= lastSentScoreRef.current) {
+    if (
+      gameState !== "playing" ||
+      pose.trackingState !== "ACTIVE" ||
+      pose.reps <= lastSentScoreRef.current
+    ) {
       return
     }
     const socket = socketRef.current
@@ -164,7 +166,7 @@ export default function GamePKPage() {
       socket.send(JSON.stringify({ type: "SCORE_UPDATE", score }))
     }
     lastSentScoreRef.current = pose.reps
-  }, [gameState, pose.reps])
+  }, [gameState, pose.reps, pose.trackingState])
 
   function toggleReady() {
     const socket = socketRef.current
@@ -237,20 +239,9 @@ export default function GamePKPage() {
                     <option value="pushup">伏地挺身</option>
                   </select>
                 </label>
-                <label className="block space-y-1.5 text-sm">
-                  <span className="text-muted-foreground">體重（kg）</span>
-                  <input
-                    type="number"
-                    min={20}
-                    max={300}
-                    step={0.5}
-                    value={weightKg}
-                    onChange={(event) =>
-                      setWeightKg(Number(event.target.value))
-                    }
-                    className="h-10 w-full rounded-xl border border-border bg-background px-3"
-                  />
-                </label>
+                <p className="text-xs text-muted-foreground">
+                  未提供體重仍可正常對戰；只有熱量估算會顯示為未估算。
+                </p>
                 <Button
                   className="w-full"
                   disabled={connection === "connecting"}
@@ -388,7 +379,10 @@ export default function GamePKPage() {
                         : "正在啟動姿勢辨識…")}
                   </CardContent>
                 </Card>
-                <ErrorList errors={pose.errors} />
+                <ErrorList
+                  errors={pose.formErrors}
+                  isAnalyzing={pose.trackingState === "ACTIVE"}
+                />
               </div>
             </div>
           ) : null}

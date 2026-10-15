@@ -5,6 +5,7 @@ import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision"
 
 import { connectAnalyzeSocket } from "@/lib/socket"
 import { getAccessToken } from "@/lib/auth-client"
+import { createPoseObservation } from "@/lib/pose-messages"
 import type { ExerciseType, PoseData } from "@/types/pose"
 
 const WASM_BASE =
@@ -21,17 +22,19 @@ export const EMPTY_POSE: PoseData = {
   reps: 0,
   state: "idle",
   angles: {
-    leftKnee: 0,
-    rightKnee: 0,
-    leftHip: 0,
-    rightHip: 0,
-    leftElbow: 0,
-    rightElbow: 0,
+    leftKnee: null,
+    rightKnee: null,
+    leftHip: null,
+    rightHip: null,
+    leftElbow: null,
+    rightElbow: null,
   },
-  errors: [],
+  formErrors: [],
+  trackingHints: [],
+  trackingState: "ACQUIRING",
   confidence: 0,
   isVisible: false,
-  calories: 0,
+  calories: null,
 }
 
 export type PoseAnalysisStatus =
@@ -68,16 +71,10 @@ function getPoseLandmarker() {
 type Options = {
   active: boolean
   exercise: ExerciseType
-  weightKg: number
   video: HTMLVideoElement | null
 }
 
-export function usePoseAnalysis({
-  active,
-  exercise,
-  weightKg,
-  video,
-}: Options) {
+export function usePoseAnalysis({ active, exercise, video }: Options) {
   const [pose, setPose] = useState<PoseData>(EMPTY_POSE)
   const [status, setStatus] = useState<PoseAnalysisStatus>("idle")
   const [error, setError] = useState<string | null>(null)
@@ -114,7 +111,7 @@ export function usePoseAnalysis({
     void getAccessToken()
       .then((token) => {
         if (cancelled) return
-        socket = connectAnalyzeSocket(exercise, weightKg, token, {
+        socket = connectAnalyzeSocket(exercise, token, {
           onOpen: () => {
             if (!cancelled) setStatus("live")
           },
@@ -162,21 +159,13 @@ export function usePoseAnalysis({
             try {
               const result = landmarker.detectForVideo(video, now)
               const landmarks = result.landmarks[0]
-              if (
-                landmarks?.length === 33 &&
-                socket?.readyState === WebSocket.OPEN
-              ) {
+              if (socket?.readyState === WebSocket.OPEN) {
+                const frameId = ++frameIdRef.current
+                const timestamp = now / 1000
                 socket.send(
-                  JSON.stringify({
-                    frame_id: ++frameIdRef.current,
-                    keypoints: landmarks.map((point) => ({
-                      x: point.x,
-                      y: point.y,
-                      z: point.z,
-                      visibility: point.visibility ?? 0,
-                    })),
-                    timestamp: now / 1000,
-                  })
+                  JSON.stringify(
+                    createPoseObservation(frameId, timestamp, landmarks)
+                  )
                 )
               }
               lastVideoTime = video.currentTime
@@ -206,7 +195,7 @@ export function usePoseAnalysis({
       socket?.close()
       if (socketRef.current === socket) socketRef.current = null
     }
-  }, [active, exercise, video, weightKg])
+  }, [active, exercise, video])
 
   return { pose, status: active ? status : "idle", error, reset }
 }

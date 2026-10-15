@@ -38,7 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/analyze", label: "即時分析", icon: Dumbbell },
   { href: "/pk", label: "1v1 對戰", icon: Swords },
   { href: "/history", label: "訓練紀錄", icon: CalendarDays },
-  { href: "/inbody", label: "身體組成", icon: BicepsFlexed },
+  { href: "/inbody", label: "身體資料", icon: BicepsFlexed },
 ]
 
 function getInitials(name: string) {
