@@ -99,13 +99,12 @@ function LoginForm() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">密碼</Label>
-            <button
-              type="button"
-              className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-              onClick={() => setError("此功能尚未啟用，請聯絡管理員或重新註冊。")}
-            >
-              忘記密碼？
-            </button>
+            <Link
+  href="/forgot-password"
+  className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+>
+  忘記密碼？
+</Link>
           </div>
           <div className="relative">
             <HugeiconsIcon
