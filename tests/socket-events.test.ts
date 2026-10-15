@@ -95,6 +95,8 @@ describe("WebSocket event boundaries", () => {
       onError: vi.fn(),
       onRoomState: vi.fn(),
       onGameStart: vi.fn(),
+      onGameBegin: vi.fn(),
+      onGameEnd: vi.fn(),
       onOpponentScore: vi.fn(),
     }
     connectPKSocket("1234", "squat", "jwt", handlers)
@@ -125,7 +127,33 @@ describe("WebSocket event boundaries", () => {
       opponentScore: 0,
       exercise: "squat",
     })
-    socket.receive({ type: "GAME_START" })
+    socket.receive({
+      type: "GAME_START",
+      countdown_seconds: 10,
+      duration_seconds: 60,
+      server_time_ms: 1_000_000,
+      starts_at_ms: 1_010_000,
+      ends_at_ms: 1_070_000,
+    })
+    socket.receive({
+      type: "GAME_BEGIN",
+      duration_seconds: 60,
+      server_time_ms: 1_010_000,
+      starts_at_ms: 1_010_000,
+      ends_at_ms: 1_070_000,
+    })
+    socket.receive({
+      type: "GAME_END",
+      score: 2,
+      opponent_score: 4,
+      result: "lose",
+    })
+    expect(handlers.onGameBegin).toHaveBeenCalledOnce()
+    expect(handlers.onGameEnd).toHaveBeenCalledExactlyOnceWith({
+      score: 2,
+      opponentScore: 4,
+      result: "lose",
+    })
     socket.receive({ type: "OPPONENT_SCORE", score: 4 })
     expect(handlers.onGameStart).toHaveBeenCalledOnce()
     expect(handlers.onOpponentScore).toHaveBeenCalledExactlyOnceWith(4)
