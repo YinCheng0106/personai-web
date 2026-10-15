@@ -66,6 +66,8 @@ describe("pose socket contract", () => {
     connectPKSocket("1234", "pushup", "header.payload.signature", {
       onRoomState: vi.fn(),
       onGameStart: vi.fn(),
+      onGameBegin: vi.fn(),
+      onGameEnd: vi.fn(),
       onOpponentScore: vi.fn(),
     })
 
