@@ -1,5 +1,7 @@
 import type { ReactNode } from "react"
-import { render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { deferred } from "./helpers/fixtures"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { BodyMeasurement, BodyProfile } from "@/types/body-profile"
@@ -174,5 +176,98 @@ describe("Body Profile page states", () => {
     expect(screen.getByText("依量測資料計算")).toBeInTheDocument()
     expect(screen.getByText("瘦體重")).toBeInTheDocument()
     expect(screen.getByText("基礎代謝率")).toBeInTheDocument()
+  })
+})
+
+describe("Body Profile editing and recovery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getBodyProfile.mockReset().mockResolvedValue(profile())
+    mocks.getBodyMeasurements.mockReset().mockResolvedValue([])
+    mocks.updateBodyProfile.mockReset()
+    mocks.createBodyMeasurement.mockReset()
+  })
+
+  it("retries a load failure and returns to Unknown only after a successful response", async () => {
+    mocks.getBodyProfile.mockRejectedValueOnce(new Error("Offline"))
+    const user = userEvent.setup()
+    render(<InBodyPage />)
+    expect(await screen.findByRole("alert")).toHaveTextContent("Offline")
+    await user.click(screen.getByRole("button", { name: "重新載入" }))
+    expect(await screen.findByText("尚未提供身體資料")).toBeVisible()
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
+  it("keeps failed edits for retry, disables duplicate saves, then reflects the saved profile", async () => {
+    mocks.getBodyProfile.mockResolvedValue(
+      profile({ state: "basic", heightCm: 175, weightKg: 68 })
+    )
+    mocks.updateBodyProfile.mockRejectedValueOnce(new Error("Save failed"))
+    const user = userEvent.setup()
+    render(<InBodyPage />)
+    await user.click(await screen.findByRole("button", { name: "編輯" }))
+    await user.clear(screen.getByLabelText("體重（kg）"))
+    await user.click(screen.getByRole("button", { name: "儲存基本資料" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("Save failed")
+    expect(screen.getByLabelText("身高（cm）")).toHaveValue(175)
+    const pending = deferred<BodyProfile>()
+    mocks.updateBodyProfile.mockReturnValueOnce(pending.promise)
+    await user.click(screen.getByRole("button", { name: "儲存基本資料" }))
+    expect(screen.getByRole("button", { name: "儲存中…" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled()
+    await act(async () =>
+      pending.resolve(profile({ state: "basic", heightCm: 175 }))
+    )
+    expect(await screen.findByRole("button", { name: "編輯" })).toBeVisible()
+    expect(mocks.updateBodyProfile).toHaveBeenLastCalledWith({
+      heightCm: 175,
+      weightKg: null,
+    })
+    expect(screen.getByText("未提供")).toBeVisible()
+  })
+
+  it("creates a measured profile from Unknown without inventing body values", async () => {
+    mocks.createBodyMeasurement
+      .mockRejectedValueOnce(new Error("Measurement failed"))
+      .mockResolvedValueOnce(measurement())
+    const user = userEvent.setup()
+    render(<InBodyPage />)
+    await user.click(
+      await screen.findByRole("button", { name: "新增身體組成量測" })
+    )
+    await user.type(screen.getByLabelText("量測來源"), "InBody")
+    await user.type(screen.getByLabelText("量測日期"), "2026-10-15")
+    await user.type(screen.getByLabelText("體脂率（%）"), "18.5")
+    await user.click(screen.getByRole("button", { name: "儲存量測" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Measurement failed"
+    )
+    expect(screen.getByLabelText("體脂率（%）")).toHaveValue(18.5)
+    mocks.getBodyProfile.mockResolvedValue(profile({ state: "measured" }))
+    mocks.getBodyMeasurements.mockResolvedValue([measurement()])
+    await user.click(screen.getByRole("button", { name: "儲存量測" }))
+    expect(await screen.findByText("量測值")).toBeVisible()
+    expect(mocks.createBodyMeasurement).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        heightCm: null,
+        weightKg: null,
+        bodyFatPct: 18.5,
+      })
+    )
+    expect(screen.queryByText("基礎代謝率")).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "新增量測" }))
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    expect(screen.getByText("量測值")).toBeVisible()
+  })
+
+  it("cancels a new basic profile without saving", async () => {
+    const user = userEvent.setup()
+    render(<InBodyPage />)
+    await user.click(
+      await screen.findByRole("button", { name: "新增基本資料" })
+    )
+    await user.click(screen.getByRole("button", { name: "取消" }))
+    expect(screen.getByText("尚未提供身體資料")).toBeVisible()
+    expect(mocks.updateBodyProfile).not.toHaveBeenCalled()
   })
 })

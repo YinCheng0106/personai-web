@@ -1,0 +1,61 @@
+name: Bug report
+description: 回報可重現的前端錯誤
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: 請勿附上 JWT、Cookie、密碼、連線字串或未經同意的相機影像。安全漏洞請使用維護者的私下聯絡管道。
+  - type: textarea
+    id: summary
+    attributes:
+      label: 問題摘要
+      description: 哪個頁面或操作出現問題？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重現步驟
+      placeholder: "1. 開啟頁面\n2. 執行操作\n3. 觀察結果"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 預期結果與實際結果
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 執行環境
+      description: 請提供 commit、作業系統、瀏覽器版本、螢幕尺寸；相機問題另註明權限、裝置與 HTTPS 情況。
+    validations:
+      required: true
+  - type: dropdown
+    id: boundary
+    attributes:
+      label: 使用的測試環境
+      options:
+        - 不確定
+        - Vitest / MSW
+        - Playwright / mock API
+        - 本機 Better Auth / PostgreSQL 與 mock FastAPI
+        - 真實前後端整合
+        - 真人相機測試
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 測試證據與補充資料
+      description: 可附已遮罩的錯誤訊息、tracking state、重試結果及截圖。請說明 null / 未估算 / 0 的狀態，勿提供原始個人資料。
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 回報前確認
+      options:
+        - label: 已移除憑證與敏感個人資料
+          required: true
+        - label: 已搜尋現有 issues，並提供可重現資訊
+          required: true

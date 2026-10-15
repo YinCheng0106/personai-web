@@ -4,9 +4,14 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest
+    outputs:
+      reports: ${{ steps.reports.outcome }}
     services:
       postgres:
         image: postgres:17-alpine
@@ -40,7 +45,65 @@ jobs:
       - run: bun run auth:migrate
       - run: bun run lint
       - run: bun run typecheck
-      - run: bun run test
+      # One Vitest invocation supplies the test gate, coverage, and JUnit.
+      - run: bun run test:coverage
       - run: bun run build
       - run: bunx playwright install --with-deps chromium
       - run: bun run test:e2e
+      - name: Preserve reports even when a test fails
+        id: reports
+        if: ${{ !cancelled() && (hashFiles('coverage/lcov.info') != '' || hashFiles('test-results/*.xml') != '') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-reports
+          path: |
+            coverage/lcov.info
+            test-results/vitest.xml
+            test-results/playwright.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  codecov:
+    needs: quality
+    if: ${{ !cancelled() && needs.quality.outputs.reports == 'success' }}
+    runs-on: ubuntu-latest
+    # Only the report job can request OIDC; it never executes project code.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-test-reports
+      - name: Locate test reports
+        id: junit
+        shell: bash
+        run: |
+          reports=()
+          for file in test-results/vitest.xml test-results/playwright.xml; do
+            if [[ -f "$file" ]]; then reports+=("$file"); fi
+          done
+          joined=$(IFS=,; echo "${reports[*]}")
+          echo "files=$joined" >> "$GITHUB_OUTPUT"
+      - name: Upload coverage (informational rollout)
+        if: ${{ hashFiles('coverage/lcov.info') != '' }}
+        continue-on-error: true
+        uses: codecov/codecov-action@f9fe539f5290016afa014f8ef31597d3a61c2dea # v7
+        with:
+          # Fork PRs use tokenless upload because GitHub may deny their OIDC permission.
+          use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          files: coverage/lcov.info
+          disable_search: true
+          fail_ci_if_error: false
+          flags: frontend
+      - name: Upload test analytics (informational rollout)
+        if: ${{ !cancelled() && steps.junit.outputs.files != '' }}
+        continue-on-error: true
+        uses: codecov/codecov-action@f9fe539f5290016afa014f8ef31597d3a61c2dea # v7
+        with:
+          use_oidc: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+          files: ${{ steps.junit.outputs.files }}
+          report_type: test_results
+          disable_search: true
+          fail_ci_if_error: false

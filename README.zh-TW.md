@@ -8,11 +8,11 @@ PersonAI 是 AI 個人教練的網頁前端。它將即時相機姿勢分析流�
 
 ## 主要功能
 
-- **即時姿勢分析** — 相機影像只在瀏覽器本機處理，透過 WebSocket 僅傳送 33 個姿勢關鍵點至 Python 後端，並以 HUD 顯示次數、FSM 狀態、關節角度、卡路里估算與即時姿勢錯誤提示。
+- **即時姿勢分析** — 相機影像只在瀏覽器本機處理，透過 WebSocket 傳送 33 個姿勢關鍵點或明確的 `pose_missing` 訊息至 Python 後端，並以 HUD 顯示次數、FSM 狀態、關節角度、卡路里估算與即時姿勢錯誤提示。
 - **1v1 動作對戰** — 具身分驗證的雙人房沿用即時姿勢辨識流程，另一條 WebSocket 只交換準備狀態與動作次數。
-- **儀表板** — 一目了然的每日指標卡片、週活動圖表、目標進度與當日訓練清單。
+- **儀表板** — 一目了然的每日指標卡片、週活動圖表、姿勢品質與當日訓練清單。
 - **訓練歷程** — 活動熱力圖、各動作摘要與依時序排列的訓練日誌。
-- **InBody 洞察** — BMI 與身體組成卡片，搭配用於規劃訓練的卡路里估算工具。
+- **身體資料** — 可選填基本身高／體重，並獨立記錄身體組成量測；保留未知值，衍生指標由 API 提供。
 - **主題切換** — 採用 `next-themes` 與 OKLCH 設計 token，支援淺色／深色模式。
 - **正式身分驗證** — Better Auth 以 HttpOnly Cookie 維持 Email／密碼登入，並以短效 JWKS JWT 保護 FastAPI REST 與 WebSocket。
 - **在地化 UI** — 所有面向使用者的文案皆使用繁體中文（zh-TW）；後端 enum 會在邊緣透過正規的標籤對照表翻譯。
@@ -30,8 +30,8 @@ PersonAI 是 AI 個人教練的網頁前端。它將即時相機姿勢分析流�
 
 ### 前置需求
 
-- [Bun](https://bun.sh/) ≥ 1.0（npm/pnpm/yarn 亦可運作，但 `bun.lock` 是唯一可信來源）
-- Node.js ≥ 20（僅在不使用 Bun 時需要）
+- [Bun](https://bun.sh/) 1.3.14（與 CI 一致；依賴版本以 `bun.lock` 為準）
+- 測試工具使用 Node.js 22.12 以上的受支援 LTS 版本
 - 執行中的 [PersonAI backend](https://github.com/YinCheng0106/personai-api)，提供即時姿勢分析與 REST 資料
 - Better Auth 使用的 PostgreSQL（正式環境使用 Supabase Session Pooler）
 
@@ -43,8 +43,7 @@ git clone https://github.com/YinCheng0106/personai-web.git
 cd personai-web
 
 # Install dependencies
-bun install
-# or: npm install / pnpm install / yarn
+bun install --frozen-lockfile
 ```
 
 ### 環境變數
@@ -76,8 +75,11 @@ cp .env.sample .env.local
 | `bun run typecheck`  | 以 `tsc --noEmit` 進行型別檢查。                         |
 | `bun run format`     | 以 Prettier 格式化 `**/*.{ts,tsx}`。                     |
 | `bun run test`       | 執行 Vitest 元件與契約測試。                              |
+| `bun run test:coverage` | 執行 V8 覆蓋率檢查並產出 HTML／LCOV／JUnit。 |
 | `bun run test:e2e`   | 執行 Playwright 瀏覽器測試。                              |
 | `bun run auth:migrate` | 在 `personai_auth` 建立／更新 Better Auth 資料表。       |
+
+開發流程請見 [CONTRIBUTING.md](./CONTRIBUTING.md)；測試設定、Codecov 與 mock／真實整合邊界請見 [docs/TESTING.md](./docs/TESTING.md)。
 
 開發伺服器啟動後，請開啟 [http://localhost:3000](http://localhost:3000)。
 
@@ -91,11 +93,11 @@ bunx shadcn@latest add <component>
 
 ### 登入資料庫設定
 
-1. 在 Supabase 執行 `scripts/bootstrap-auth-schema.sql`，建立私有的 `personai_auth` schema。
+1. 在本機開發 PostgreSQL 執行 `scripts/bootstrap-auth-schema.sql`，建立私有的 `personai_auth` schema。
 2. 執行 `bun run auth:migrate`，該 schema 內的資料表由 Better Auth 管理。
 3. FastAPI 的 issuer、audience 與 `/api/auth/jwks` 網址必須設定成相同值。
 
-REST 與姿勢分析頁目前已使用正式 API。舊 mock fixture 僅保留給離線 UI 開發，不會當作登入使用者的正式資料。
+REST 與姿勢分析頁使用具身分驗證的 API。測試透過 MSW、可控制的傳輸與瀏覽器 route 隔離 API 及硬體邊界。
 
 ### 部署前置條件
 
@@ -124,12 +126,12 @@ personai-web/
 │   │   ├── inbody/               # InBody views
 │   │   └── theme-provider.tsx    # next-themes wrapper
 │   ├── hooks/
-│   │   └── use-mock-pose.ts      # Mock pose stream for offline UI work
+│   │   └── use-pose-analysis.ts  # MediaPipe + authenticated Analyze socket
 │   ├── lib/
 │   │   ├── api.ts                # REST client (request<T>() helper)
 │   │   ├── socket.ts             # WebSocket adapter + frame normalization
 │   │   ├── auth.ts               # better-auth init
-│   │   ├── mock-data.ts          # MOCK_* fixtures
+│   │   ├── pose-messages.ts      # Landmark / pose_missing observations
 │   │   ├── constants.ts          # Label maps (zh-TW translations)
 │   │   ├── format.ts             # Display formatters
 │   │   └── utils.ts              # cn() and shared utilities

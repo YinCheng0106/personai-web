@@ -123,8 +123,15 @@ test("register, access protected content, and sign out", async ({ page }) => {
   await expect(page.getByText("未提供")).toBeVisible()
 
   await page.goto("/analyze")
+  // This exercises persistence, not MediaPipe or a live Analyze backend.
+  await page.route("https://cdn.jsdelivr.net/**", (route) => route.abort())
+  await page.route("https://storage.googleapis.com/**", (route) =>
+    route.abort()
+  )
+  await page.routeWebSocket("ws://localhost:8000/ws/analyze/**", () => {})
+  await page.clock.install()
   await page.getByRole("button", { name: "開始訓練" }).click()
-  await page.waitForTimeout(1500)
+  await page.clock.fastForward(2000)
   await page.getByRole("button", { name: "停止並儲存" }).click()
   await expect(page.getByText("本次訓練已儲存。")).toBeVisible()
 
