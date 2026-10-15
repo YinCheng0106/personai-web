@@ -5,6 +5,14 @@ import type {
   WorkoutRecordInput,
 } from "@/types/workout"
 import type { CalorieEstimateInput, InBody, InBodyInput } from "@/types/inbody"
+import type {
+  BasicProfilePatch,
+  BodyMeasurement,
+  BodyMeasurementInput,
+  BodyMeasurementPatch,
+  BodyProfile,
+  BodyProfileState,
+} from "@/types/body-profile"
 import { getAccessToken } from "@/lib/auth-client"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000"
@@ -54,7 +62,7 @@ type WorkoutWire = {
   reps: number
   sets: number
   duration_sec: number
-  calories_burned: number
+  calories_burned: number | null
   avg_intensity: "light" | "moderate" | "vigorous"
   errors_count: number
   form_score: number
@@ -63,18 +71,48 @@ type WorkoutWire = {
 
 type DailySummaryWire = {
   date: string
-  total_calories: number
+  total_calories: number | null
   total_duration_min: number
   workout_count: number
+  calorie_workout_count: number
   total_reps: number
 }
 
 type ExerciseSummaryWire = {
   exercise_type: "squat" | "pushup"
   total_reps: number
-  total_calories: number
+  total_calories: number | null
   session_count: number
+  calorie_session_count: number
   avg_form_score: number
+}
+
+type BodyProfileWire = {
+  state: BodyProfileState
+  height_cm: number | null
+  weight_kg: number | null
+  bmi: number | null
+  updated_at: string | null
+}
+
+type BodyMeasurementWire = {
+  id: string
+  source: string
+  source_label: string | null
+  measured_at: string
+  created_at: string
+  updated_at: string
+  height_cm: number | null
+  weight_kg: number | null
+  body_fat_pct: number | null
+  skeletal_muscle_mass_kg: number | null
+  body_fat_mass_kg: number | null
+  total_body_water_kg: number | null
+  visceral_fat_level: number | null
+  bmi: number | null
+  lean_body_mass_kg: number | null
+  bmr_kcal_day: number | null
+  bmr_is_formula_estimate: boolean
 }
 
 type InBodyWire = {
@@ -125,6 +163,53 @@ function normalizeInBody(item: InBodyWire): InBody {
   }
 }
 
+function normalizeBodyProfile(item: BodyProfileWire): BodyProfile {
+  return {
+    state: item.state,
+    heightCm: item.height_cm,
+    weightKg: item.weight_kg,
+    bmi: item.bmi,
+    updatedAt: item.updated_at,
+  }
+}
+
+function normalizeBodyMeasurement(item: BodyMeasurementWire): BodyMeasurement {
+  return {
+    id: item.id,
+    source: item.source,
+    sourceLabel: item.source_label,
+    measuredAt: item.measured_at,
+    createdAt: item.created_at,
+    updatedAt: item.updated_at,
+    heightCm: item.height_cm,
+    weightKg: item.weight_kg,
+    bodyFatPct: item.body_fat_pct,
+    skeletalMuscleMassKg: item.skeletal_muscle_mass_kg,
+    bodyFatMassKg: item.body_fat_mass_kg,
+    totalBodyWaterKg: item.total_body_water_kg,
+    visceralFatLevel: item.visceral_fat_level,
+    bmi: item.bmi,
+    leanBodyMassKg: item.lean_body_mass_kg,
+    bmrKcalDay: item.bmr_kcal_day,
+    bmrIsFormulaEstimate: item.bmr_is_formula_estimate,
+  }
+}
+
+function measurementWire(payload: BodyMeasurementInput | BodyMeasurementPatch) {
+  return {
+    source: payload.source,
+    source_label: payload.sourceLabel,
+    measured_at: payload.measuredAt,
+    height_cm: payload.heightCm,
+    weight_kg: payload.weightKg,
+    body_fat_pct: payload.bodyFatPct,
+    skeletal_muscle_mass_kg: payload.skeletalMuscleMassKg,
+    body_fat_mass_kg: payload.bodyFatMassKg,
+    total_body_water_kg: payload.totalBodyWaterKg,
+    visceral_fat_level: payload.visceralFatLevel,
+  }
+}
+
 export const api = {
   serverHealth: () => request<{ status: string; detail: string }>("/server"),
 
@@ -139,6 +224,7 @@ export const api = {
         totalReps: item.total_reps,
         totalCalories: item.total_calories,
         sessions: item.session_count,
+        calorieSessions: item.calorie_session_count,
         avgFormScore: item.avg_form_score,
       })
     )
@@ -151,6 +237,7 @@ export const api = {
       totalCalories: item.total_calories,
       durationMin: item.total_duration_min,
       workoutCount: item.workout_count,
+      calorieWorkoutCount: item.calorie_workout_count,
     }))
   },
 
@@ -170,6 +257,63 @@ export const api = {
     return normalizeWorkout(item)
   },
 
+  async getBodyProfile() {
+    return normalizeBodyProfile(
+      await request<BodyProfileWire>("/body-profile/me")
+    )
+  },
+
+  async updateBodyProfile(payload: BasicProfilePatch) {
+    const item = await request<BodyProfileWire>("/body-profile/me", {
+      method: "PATCH",
+      body: JSON.stringify({
+        height_cm: payload.heightCm,
+        weight_kg: payload.weightKg,
+      }),
+    })
+    return normalizeBodyProfile(item)
+  },
+
+  async createBodyMeasurement(payload: BodyMeasurementInput) {
+    const item = await request<BodyMeasurementWire>(
+      "/body-profile/me/measurements",
+      {
+        method: "POST",
+        body: JSON.stringify(measurementWire(payload)),
+      }
+    )
+    return normalizeBodyMeasurement(item)
+  },
+
+  async getBodyMeasurements() {
+    return (
+      await request<BodyMeasurementWire[]>("/body-profile/me/measurements")
+    ).map(normalizeBodyMeasurement)
+  },
+
+  async getBodyMeasurement(measurementId: string) {
+    return normalizeBodyMeasurement(
+      await request<BodyMeasurementWire>(
+        `/body-profile/me/measurements/${measurementId}`
+      )
+    )
+  },
+
+  async updateBodyMeasurement(
+    measurementId: string,
+    payload: BodyMeasurementPatch
+  ) {
+    const item = await request<BodyMeasurementWire>(
+      `/body-profile/me/measurements/${measurementId}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(measurementWire(payload)),
+      }
+    )
+    return normalizeBodyMeasurement(item)
+  },
+
+  // Retained for compatibility with existing consumers during the migration.
   async getInBody() {
     return normalizeInBody(await request<InBodyWire>("/inbody/me"))
   },

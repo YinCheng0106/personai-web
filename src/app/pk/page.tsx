@@ -10,24 +10,14 @@ import { ErrorList } from "@/components/fitness/error-list"
 import { HUDOverlay } from "@/components/fitness/hud-overlay"
 import { PageContainer } from "@/components/layout/page-container"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { usePoseAnalysis } from "@/hooks/use-pose-analysis"
 import { getAccessToken } from "@/lib/auth-client"
 import { connectPKSocket } from "@/lib/socket"
 import { cn } from "@/lib/utils"
 import type { ExerciseType } from "@/types/pose"
 
-type GameState =
-  | "lobby"
-  | "room"
-  | "countdown"
-  | "playing"
-  | "finished"
+type GameState = "lobby" | "room" | "countdown" | "playing" | "finished"
 
 type ConnectionState = "offline" | "connecting" | "connected"
 
@@ -60,13 +50,11 @@ function formatTime(seconds: number) {
 
 export default function GamePKPage() {
   const [gameState, setGameState] = useState<GameState>("lobby")
-  const [connection, setConnection] =
-    useState<ConnectionState>("offline")
+  const [connection, setConnection] = useState<ConnectionState>("offline")
 
   const [roomId, setRoomId] = useState("")
   const [inputRoomId, setInputRoomId] = useState("")
   const [exercise, setExercise] = useState<ExerciseType>("squat")
-  const [weightKg, setWeightKg] = useState(70)
 
   const [isReady, setIsReady] = useState(false)
   const [opponentReady, setOpponentReady] = useState(false)
@@ -74,7 +62,8 @@ export default function GamePKPage() {
   const [opponentScore, setOpponentScore] = useState(0)
 
   const [countdown, setCountdown] = useState(PREPARE_SECONDS)
-  const [prepareDuration, setPrepareDuration] = useState(PREPARE_SECONDS)
+  const [prepareDeadline, setPrepareDeadline] = useState(0)
+  const [matchDeadline, setMatchDeadline] = useState(0)
   const [matchDuration, setMatchDuration] = useState(MATCH_SECONDS)
   const [remainingTime, setRemainingTime] = useState(MATCH_SECONDS)
 
@@ -89,8 +78,9 @@ export default function GamePKPage() {
 
   const socketRef = useRef<WebSocket | null>(null)
   const lastSentScoreRef = useRef(0)
-  const currentScoreRef = useRef(0)
-  const opponentScoreRef = useRef(0)
+  const phaseRef = useRef<GameState>("lobby")
+  const attemptRef = useRef(0)
+  const matchDeadlineRef = useRef(0)
 
   const {
     pose,
@@ -98,14 +88,10 @@ export default function GamePKPage() {
     error: poseError,
     reset,
   } = usePoseAnalysis({
-    active: gameState === "playing",
+    active: gameState === "playing" && remainingTime > 0,
     exercise,
-    weightKg,
     video,
   })
-
-  currentScoreRef.current = pose.reps
-  opponentScoreRef.current = opponentScore
 
   const leaveRoom = useCallback(() => {
     const socket = socketRef.current
@@ -122,7 +108,8 @@ export default function GamePKPage() {
     setOpponentScore(0)
 
     setCountdown(PREPARE_SECONDS)
-    setPrepareDuration(PREPARE_SECONDS)
+    setPrepareDeadline(0)
+    setMatchDeadline(0)
     setMatchDuration(MATCH_SECONDS)
     setRemainingTime(MATCH_SECONDS)
 
@@ -134,14 +121,17 @@ export default function GamePKPage() {
     setError(null)
 
     lastSentScoreRef.current = 0
-    currentScoreRef.current = 0
-    opponentScoreRef.current = 0
+    phaseRef.current = "lobby"
+    attemptRef.current++
+    matchDeadlineRef.current = 0
 
     reset()
   }, [reset])
 
   useEffect(() => {
+    const attempts = attemptRef
     return () => {
+      attempts.current++
       socketRef.current?.close(1000, "Page closed")
       socketRef.current = null
     }
@@ -157,117 +147,162 @@ export default function GamePKPage() {
       setConnection("connecting")
       setError(null)
 
-      socketRef.current?.close(1000, "Replaced connection")
+      const previousSocket = socketRef.current
+      socketRef.current = null
+      previousSocket?.close(1000, "Replaced connection")
+      const attempt = ++attemptRef.current
 
       try {
         const token = await getAccessToken()
+        if (attempt !== attemptRef.current) return
 
-        const socket = connectPKSocket(
-          targetRoomId,
-          exercise,
-          token,
-          {
-            onOpen: () => {
-              if (socketRef.current !== socket) return
+        const socket = connectPKSocket(targetRoomId, exercise, token, {
+          onOpen: () => {
+            if (socketRef.current !== socket) return
 
-              setConnection("connected")
-              setRoomId(targetRoomId)
+            setConnection("connected")
+            setRoomId(targetRoomId)
+            phaseRef.current = "room"
+            setGameState("room")
+          },
+
+          onRoomState: (state) => {
+            if (socketRef.current !== socket) return
+
+            setPlayerCount(state.playerCount)
+            setOpponentReady(state.opponentReady)
+            setOpponentScore(state.opponentScore)
+
+            if (state.ready !== undefined) setIsReady(state.ready)
+            if (state.playerCount < 2) setIsReady(false)
+            if (state.phase === "waiting" && phaseRef.current !== "finished") {
+              if (
+                phaseRef.current === "countdown" ||
+                phaseRef.current === "playing"
+              ) {
+                setError("對手已離開，比賽取消。重新加入後請再次準備。")
+                reset()
+                lastSentScoreRef.current = 0
+              }
+              phaseRef.current = "room"
               setGameState("room")
-            },
+            }
+          },
 
-            onRoomState: (state) => {
-              if (socketRef.current !== socket) return
+          // 後端通知：雙方準備完成，進入 10 秒準備倒數。
+          onGameStart: (countdownSeconds, durationSeconds, timing) => {
+            if (socketRef.current !== socket) return
 
-              setPlayerCount(state.playerCount)
-              setOpponentReady(state.opponentReady)
-              setOpponentScore(state.opponentScore)
+            if (phaseRef.current !== "room") return
+            phaseRef.current = "countdown"
+            lastSentScoreRef.current = 0
 
-              if (state.playerCount < 2) {
-                setIsReady(false)
-              }
-            },
+            reset()
 
-            // 後端通知：雙方準備完成，進入 10 秒準備倒數。
-            onGameStart: (countdownSeconds, durationSeconds) => {
-              if (socketRef.current !== socket) return
+            setOpponentScore(0)
+            setFinalScore(0)
+            setFinalOpponentScore(0)
+            setFinalResult("draw")
 
-              lastSentScoreRef.current = 0
-              currentScoreRef.current = 0
-              opponentScoreRef.current = 0
+            const now = performance.now()
+            const prepareLeft = Math.max(
+              0,
+              timing.startsAtMs - timing.serverTimeMs
+            )
+            const matchLeft = Math.max(0, timing.endsAtMs - timing.serverTimeMs)
+            setPrepareDeadline(now + prepareLeft)
+            matchDeadlineRef.current = now + matchLeft
+            setMatchDeadline(matchDeadlineRef.current)
+            setCountdown(
+              Math.min(countdownSeconds, Math.ceil(prepareLeft / 1000))
+            )
+            setMatchDuration(durationSeconds)
+            setRemainingTime(durationSeconds)
 
-              reset()
+            setError(null)
+            setGameState("countdown")
+          },
 
+          // 後端通知：正式比賽開始。
+          onGameBegin: (durationSeconds, timing) => {
+            if (socketRef.current !== socket) return
+
+            if (phaseRef.current !== "countdown") return
+            phaseRef.current = "playing"
+            const deadline = Math.min(
+              matchDeadlineRef.current,
+              performance.now() +
+                Math.max(0, timing.endsAtMs - timing.serverTimeMs)
+            )
+            matchDeadlineRef.current = deadline
+            setMatchDeadline(deadline)
+            setMatchDuration(durationSeconds)
+            setRemainingTime(
+              Math.max(0, Math.ceil((deadline - performance.now()) / 1000))
+            )
+            setGameState("playing")
+          },
+
+          // 後端通知：比賽結束，使用伺服器最終分數。
+          onGameEnd: (result) => {
+            if (socketRef.current !== socket) return
+
+            if (
+              phaseRef.current !== "countdown" &&
+              phaseRef.current !== "playing"
+            )
+              return
+            phaseRef.current = "finished"
+            setFinalScore(result.score)
+            setFinalOpponentScore(result.opponentScore)
+            setFinalResult(result.result)
+            setRemainingTime(0)
+            setOpponentScore(result.opponentScore)
+            setGameState("finished")
+          },
+
+          onOpponentScore: (score) => {
+            if (
+              socketRef.current === socket &&
+              phaseRef.current === "playing"
+            ) {
+              setOpponentScore(score)
+            }
+          },
+
+          onError: () => {
+            if (socketRef.current === socket) {
+              setError("無法連線至對戰服務，請確認後端是否已啟動。")
+            }
+          },
+
+          onClose: (event) => {
+            if (socketRef.current !== socket) return
+
+            socketRef.current = null
+            setConnection("offline")
+            setPlayerCount(0)
+            setIsReady(false)
+            setOpponentReady(false)
+
+            if (phaseRef.current !== "finished") {
+              phaseRef.current = "lobby"
+              setGameState("lobby")
               setOpponentScore(0)
-              setFinalScore(0)
-              setFinalOpponentScore(0)
-              setFinalResult("draw")
-
-              setPrepareDuration(countdownSeconds)
-              setCountdown(countdownSeconds)
-              setMatchDuration(durationSeconds)
-              setRemainingTime(durationSeconds)
-
-              setError(null)
-              setGameState("countdown")
-            },
-
-            // 後端通知：正式比賽開始。
-            onGameBegin: (durationSeconds) => {
-              if (socketRef.current !== socket) return
-
-              setMatchDuration(durationSeconds)
-              setRemainingTime(durationSeconds)
-              setGameState("playing")
-            },
-
-            // 後端通知：比賽結束，使用伺服器最終分數。
-            onGameEnd: (result) => {
-              if (socketRef.current !== socket) return
-
-              setFinalScore(result.score)
-              setFinalOpponentScore(result.opponentScore)
-              setFinalResult(result.result)
-              setRemainingTime(0)
-              setOpponentScore(result.opponentScore)
-              setGameState("finished")
-            },
-
-            onOpponentScore: (score) => {
-              if (socketRef.current === socket) {
-                setOpponentScore(score)
-                opponentScoreRef.current = score
-              }
-            },
-
-            onError: () => {
-              if (socketRef.current === socket) {
-                setError("無法連線至對戰服務，請確認後端是否已啟動。")
-              }
-            },
-
-            onClose: (event) => {
-              if (socketRef.current !== socket) return
-
-              socketRef.current = null
-              setConnection("offline")
-              setPlayerCount(0)
-              setIsReady(false)
-              setOpponentReady(false)
-
-              if (event.code !== 1000) {
-                setError(
-                  CLOSE_MESSAGE[event.code] ??
-                    "對戰連線已中斷，請重新加入。"
-                )
-
-                setGameState("lobby")
-              }
-            },
-          }
-        )
+              setVideo(null)
+              reset()
+            }
+            if (event.code !== 1000) {
+              setError(
+                CLOSE_MESSAGE[event.code] ?? "對戰連線已中斷，請重新加入。"
+              )
+            }
+          },
+        })
 
         socketRef.current = socket
       } catch {
+        if (attempt !== attemptRef.current) return
         setConnection("offline")
         setError("無法取得登入憑證，請重新登入後再試。")
       }
@@ -280,43 +315,40 @@ export default function GamePKPage() {
   useEffect(() => {
     if (gameState !== "countdown") return
 
-    const endAt = Date.now() + prepareDuration * 1000
+    const endAt = prepareDeadline
 
     const timer = window.setInterval(() => {
-      const left = Math.max(
-        0,
-        Math.ceil((endAt - Date.now()) / 1000)
-      )
+      const left = Math.max(0, Math.ceil((endAt - performance.now()) / 1000))
 
       setCountdown(left)
     }, 100)
 
     return () => window.clearInterval(timer)
-  }, [gameState, prepareDuration])
+  }, [gameState, prepareDeadline])
 
   // 正式比賽時間只用來顯示倒數。
   // 最終結束與分數仍以後端 GAME_END 為準。
   useEffect(() => {
     if (gameState !== "playing") return
 
-    const endAt = Date.now() + matchDuration * 1000
+    const endAt = matchDeadline
 
     const timer = window.setInterval(() => {
-      const left = Math.max(
-        0,
-        Math.ceil((endAt - Date.now()) / 1000)
-      )
+      const left = Math.max(0, Math.ceil((endAt - performance.now()) / 1000))
 
       setRemainingTime(left)
     }, 100)
 
     return () => window.clearInterval(timer)
-  }, [gameState, matchDuration])
+  }, [gameState, matchDeadline])
 
   // 只有正式比賽期間才傳送分數。
   useEffect(() => {
     if (
       gameState !== "playing" ||
+      phaseRef.current !== "playing" ||
+      performance.now() >= matchDeadlineRef.current ||
+      pose.trackingState !== "ACTIVE" ||
       pose.reps <= lastSentScoreRef.current
     ) {
       return
@@ -335,7 +367,7 @@ export default function GamePKPage() {
     }
 
     lastSentScoreRef.current = pose.reps
-  }, [gameState, pose.reps])
+  }, [gameState, pose.reps, pose.trackingState])
 
   function toggleReady() {
     const socket = socketRef.current
@@ -397,9 +429,7 @@ export default function GamePKPage() {
               {connectionLabel}
             </span>
 
-            {error ? (
-              <span className="text-destructive">{error}</span>
-            ) : null}
+            {error ? <span className="text-destructive">{error}</span> : null}
           </div>
 
           {gameState === "lobby" ? (
@@ -426,20 +456,9 @@ export default function GamePKPage() {
                   </select>
                 </label>
 
-                <label className="block space-y-1.5 text-sm">
-                  <span className="text-muted-foreground">體重（kg）</span>
-                  <input
-                    type="number"
-                    min={20}
-                    max={300}
-                    step={0.5}
-                    value={weightKg}
-                    onChange={(event) =>
-                      setWeightKg(Number(event.target.value))
-                    }
-                    className="h-10 w-full rounded-xl border border-border bg-background px-3"
-                  />
-                </label>
+                <p className="text-xs text-muted-foreground">
+                  未提供體重仍可正常對戰；只有熱量估算會顯示為未估算。
+                </p>
 
                 <Button
                   className="w-full"
@@ -476,8 +495,7 @@ export default function GamePKPage() {
                   <Button
                     variant="outline"
                     disabled={
-                      connection === "connecting" ||
-                      inputRoomId.length !== 4
+                      connection === "connecting" || inputRoomId.length !== 4
                     }
                     onClick={() => void connectToRoom(inputRoomId)}
                   >
@@ -549,7 +567,7 @@ export default function GamePKPage() {
 
                 <p className="text-lg font-medium">準備開始！</p>
 
-                <p className="text-8xl font-bold tabular-nums text-primary">
+                <p className="text-8xl font-bold text-primary tabular-nums">
                   {countdown}
                 </p>
 
@@ -568,16 +586,12 @@ export default function GamePKPage() {
             <div className="space-y-4">
               <Card>
                 <CardContent className="py-5 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    剩餘比賽時間
-                  </p>
+                  <p className="text-sm text-muted-foreground">剩餘比賽時間</p>
 
                   <p
                     className={cn(
                       "mt-1 text-5xl font-bold tabular-nums",
-                      remainingTime <= 10
-                        ? "text-destructive"
-                        : "text-primary"
+                      remainingTime <= 10 ? "text-destructive" : "text-primary"
                     )}
                   >
                     {formatTime(remainingTime)}
@@ -606,7 +620,7 @@ export default function GamePKPage() {
                   </div>
 
                   <CameraFrame
-                    active
+                    active={remainingTime > 0}
                     onVideoReady={setVideo}
                     className="border border-border"
                   >
@@ -635,7 +649,10 @@ export default function GamePKPage() {
                     </CardContent>
                   </Card>
 
-                  <ErrorList errors={pose.errors} />
+                  <ErrorList
+                    errors={pose.formErrors}
+                    isAnalyzing={pose.trackingState === "ACTIVE"}
+                  />
                 </div>
               </div>
             </div>
@@ -656,7 +673,7 @@ export default function GamePKPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="rounded-2xl border border-border bg-muted/40 p-5">
                     <p className="text-sm text-muted-foreground">你的分數</p>
-                    <p className="mt-2 text-4xl font-bold tabular-nums text-primary">
+                    <p className="mt-2 text-4xl font-bold text-primary tabular-nums">
                       {finalScore}
                     </p>
                   </div>

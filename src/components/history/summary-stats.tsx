@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProgressBar } from "@/components/ui/progress-bar"
 import { EXERCISE_LABEL } from "@/types/pose"
 import type { ExerciseSummary } from "@/types/workout"
+import { formatCalories } from "@/lib/format"
 
 type Props = {
   summary: ExerciseSummary[]
@@ -20,9 +21,12 @@ export function SummaryStats({ summary }: Props) {
           return (
             <div key={row.exercise} className="space-y-1.5">
               <div className="flex items-baseline justify-between">
-                <span className="text-sm font-medium">{EXERCISE_LABEL[row.exercise]}</span>
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {row.totalReps} 下 · {row.totalCalories} kcal · {row.sessions} 場
+                <span className="text-sm font-medium">
+                  {EXERCISE_LABEL[row.exercise]}
+                </span>
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {row.totalReps} 下 · {formatCalories(row.totalCalories)} ·{" "}
+                  {row.sessions} 場
                 </span>
               </div>
               <ProgressBar value={pct} tone="primary" />

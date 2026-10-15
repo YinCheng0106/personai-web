@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated test reports are not source files.
+    "coverage/**",
+    "test-results/**",
+    "playwright-report/**",
   ]),
 ]);
 

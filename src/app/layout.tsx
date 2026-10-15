@@ -15,7 +15,7 @@ const fontMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "PersonAI Coach — AI 健身教練",
-  description: "即時姿勢偵測、運動次數統計與身體組成分析的智慧健身平台。",
+  description: "即時姿勢偵測、運動次數統計與身體資料管理的智慧健身平台。",
 }
 
 export default function RootLayout({
@@ -27,7 +27,12 @@ export default function RootLayout({
     <html
       lang="zh-Hant"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-sans", geist.variable)}
+      className={cn(
+        "antialiased",
+        fontMono.variable,
+        "font-sans",
+        geist.variable
+      )}
     >
       <body className="min-h-svh bg-background text-foreground">
         <ThemeProvider>
