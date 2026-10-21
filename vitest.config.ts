@@ -11,9 +11,16 @@ export default defineConfig({
     environment: "jsdom",
     exclude: ["e2e/**", "node_modules/**"],
     setupFiles: ["./tests/setup.ts"],
+    reporters: [
+      "default",
+      ["junit", { outputFile: "test-results/vitest.xml" }],
+    ],
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
+      reportOnFailure: true,
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/**/*.d.ts"],
+      reporter: ["text", "html", "lcov", "json-summary"],
       thresholds: {
         lines: 60,
         functions: 60,

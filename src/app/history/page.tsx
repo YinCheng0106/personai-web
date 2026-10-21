@@ -10,6 +10,7 @@ import { PageContainer } from "@/components/layout/page-container"
 import { MetricCard } from "@/components/ui/metric-card"
 import { api } from "@/lib/api"
 import { useSession } from "@/lib/auth-client"
+import { summaryCalorieCoverage } from "@/lib/calorie-coverage"
 import type {
   DailySummary,
   ExerciseSummary,
@@ -76,7 +77,7 @@ export default function HistoryPage() {
 
   const totalSessions = summary.reduce((sum, row) => sum + row.sessions, 0)
   const totalReps = summary.reduce((sum, row) => sum + row.totalReps, 0)
-  const totalCalories = summary.reduce((sum, row) => sum + row.totalCalories, 0)
+  const calorieCoverage = summaryCalorieCoverage(summary)
   const activeDays = daily.filter((item) => item.totalReps > 0).length
 
   return (
@@ -98,9 +99,18 @@ export default function HistoryPage() {
           <MetricCard label="累積場次" value={totalSessions} unit="場" />
           <MetricCard label="累積次數" value={totalReps} unit="下" />
           <MetricCard
-            label="累積卡路里"
-            value={Math.round(totalCalories)}
-            unit="kcal"
+            label="累積熱量估算"
+            value={
+              calorieCoverage.calories === null
+                ? "—"
+                : Math.round(calorieCoverage.calories)
+            }
+            unit={calorieCoverage.calories === null ? undefined : "kcal"}
+            delta={
+              calorieCoverage.calories === null
+                ? { value: "部分訓練缺少體重資料", tone: "neutral" }
+                : undefined
+            }
           />
           <MetricCard label="活躍天數" value={activeDays} unit="天" />
         </div>

@@ -4,11 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import {
-  ShieldUser,
-  LogIn,
-  UserPlus
-} from "lucide-react"
+import { ShieldUser, LogIn, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useSession } from "@/lib/auth-client"
 
@@ -21,7 +17,7 @@ type Props = {
 export function RequireAuth({
   children,
   title = "此頁面包含個人資料",
-  description = "登入或註冊以檢視你的訓練紀錄、身體組成與目標進度。",
+  description = "登入或註冊以檢視你的訓練紀錄與身體資料。",
 }: Props) {
   const session = useSession()
   const pathname = usePathname()
@@ -41,8 +37,12 @@ export function RequireAuth({
         <div className="grid h-14 w-14 place-items-center rounded-3xl bg-primary/10 text-primary">
           <ShieldUser size={28} />
         </div>
-        <h2 className="mt-5 text-lg font-semibold tracking-tight md:text-xl">{title}</h2>
-        <p className="mt-2 max-w-sm text-sm text-muted-foreground">{description}</p>
+        <h2 className="mt-5 text-lg font-semibold tracking-tight md:text-xl">
+          {title}
+        </h2>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          {description}
+        </p>
         <div className="mt-6 flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
           <Button asChild size="lg" className="sm:w-auto">
             <Link href={`/login?redirect=${redirect}`}>

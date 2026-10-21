@@ -1,93 +1,146 @@
-"use client";
+"use client"
 
-import React, { useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react"
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
+import { AuthCard } from "@/components/auth/auth-card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { authClient } from "@/lib/auth-client"
 
-export default function ResetPasswordPage() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const token = searchParams.get("token");
+function ResetForm() {
+  const search = useSearchParams()
+  const [token] = useState(() => search.get("token"))
+  const [valid] = useState(
+    () => !!token && /^[A-Za-z0-9]{24}$/.test(token) && !search.get("error")
+  )
+  const [password, setPassword] = useState("")
+  const [confirmation, setConfirmation] = useState("")
+  const [pending, setPending] = useState(false)
+  const [done, setDone] = useState(false)
+  const [error, setError] = useState("")
+  const busy = useRef(false)
 
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+  useEffect(() => {
+    // Retain the token only in component memory after the initial navigation.
+    window.history.replaceState(window.history.state, "", "/reset-password")
+  }, [])
 
-  const handleReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      setMessage("兩次輸入的密碼不一致");
-      return;
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy.current || done || !valid || !token) return
+    setError("")
+    if (password.length < 8 || password.length > 128) {
+      setError("密碼需為 8 至 128 個字元。")
+      return
     }
-
-    setLoading(true);
+    if (password !== confirmation) {
+      setError("兩次輸入的密碼不一致。")
+      return
+    }
+    busy.current = true
+    setPending(true)
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/auth/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, new_password: newPassword }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        alert("密碼重設成功！請使用新密碼重新登入。");
-        router.push("/login");
+      const result = await authClient.resetPassword({
+        token,
+        newPassword: password,
+      })
+      if (result.error) {
+        setError("重設連結無效、已過期或已使用，請重新申請。")
       } else {
-        setMessage(data.detail || "重設失敗，連結可能已過期或無效");
+        setPassword("")
+        setConfirmation("")
+        setDone(true)
       }
-    } catch (err) {
-      setMessage("網路連線錯誤，請稍後再試");
+    } catch {
+      setError("目前無法連線，請稍後再試。")
     } finally {
-      setLoading(false);
+      busy.current = false
+      setPending(false)
     }
-  };
+  }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-md">
-        <h2 className="mb-2 text-2xl font-bold text-gray-800">設定新密碼</h2>
-        <p className="mb-6 text-sm text-gray-600">請輸入您的新密碼。</p>
-
-        <form onSubmit={handleReset} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">新密碼</label>
-            <input
+    <AuthCard
+      title="設定新密碼"
+      description="請設定 8 至 128 個字元的密碼。"
+      footer={
+        <Link href="/login" className="underline underline-offset-4">
+          返回登入頁面
+        </Link>
+      }
+    >
+      {done ? (
+        <p role="status">密碼已重設，請使用新密碼重新登入。</p>
+      ) : !valid ? (
+        <p role="alert" className="text-sm text-destructive">
+          重設連結無效或已失效，請重新申請。
+        </p>
+      ) : (
+        <form onSubmit={submit} className="space-y-4" aria-busy={pending}>
+          <div className="space-y-2">
+            <Label htmlFor="new-password">新密碼</Label>
+            <Input
+              id="new-password"
+              name="new-password"
               type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="至少 8 個字元"
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="new-password"
               required
+              minLength={8}
+              maxLength={128}
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              disabled={pending}
             />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">確認新密碼</label>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">確認新密碼</Label>
+            <Input
+              id="confirm-password"
+              name="confirm-password"
               type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="請再次輸入新密碼"
-              className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="new-password"
               required
+              minLength={8}
+              maxLength={128}
+              value={confirmation}
+              onChange={(event) => setConfirmation(event.target.value)}
+              disabled={pending}
             />
           </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-lg text-white font-medium bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 transition"
-          >
-            {loading ? "更新中..." : "確認更新密碼"}
-          </button>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <Button type="submit" className="w-full" disabled={pending}>
+            {pending ? "更新中…" : "確認更新密碼"}
+          </Button>
         </form>
+      )}
+      {!done && (
+        <Link
+          href="/forgot-password"
+          className="mt-4 block text-sm underline underline-offset-4"
+        >
+          重新申請重設連結
+        </Link>
+      )}
+    </AuthCard>
+  )
+}
 
-        {message && (
-          <p className="mt-4 text-center text-sm font-medium text-red-600 bg-red-50 p-3 rounded-lg">
-            {message}
-          </p>
-        )}
-      </div>
-    </div>
-  );
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <p role="status" className="p-8 text-center">
+          載入中…
+        </p>
+      }
+    >
+      <ResetForm />
+    </Suspense>
+  )
 }

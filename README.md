@@ -8,10 +8,11 @@ PersonAI is the web frontend for an AI personal trainer. It pairs a live camera-
 
 ## Key Features
 
-- **Live Pose Analysis** — Streams camera frames to a Python backend over WebSocket and renders a HUD with rep counter, FSM state, joint angles, calorie estimate, and real-time form-error callouts.
-- **Dashboard** — Daily metric cards, weekly activity chart, goal progress, and today's workout list at a glance.
+- **Live Pose Analysis** — Processes camera video locally, streams 33 pose landmarks or an explicit `pose_missing` observation to the Python backend, and renders a HUD with rep count, FSM state, joint angles, calorie estimate, and real-time form-error callouts.
+- **1v1 Exercise PK** — Authenticated two-player rooms reuse the live pose pipeline and exchange only readiness and rep-count state through a separate WebSocket.
+- **Dashboard** — Daily metric cards, weekly activity chart, posture quality, and today's workout list at a glance.
 - **Workout History** — Activity heatmap, per-exercise summaries, and a chronological workout log.
-- **InBody Insights** — BMI and body-composition cards plus a calorie estimator for planning sessions.
+- **Body Profile** — Optional basic height/weight and separate body-composition measurements, with unknown values preserved and API-provided derived metrics.
 - **Theming** — Light/dark mode powered by `next-themes` with OKLCH design tokens.
 - **Authenticated data flow** — Better Auth email/password sessions use HttpOnly cookies; short-lived JWKS JWTs authorize every FastAPI REST and WebSocket request.
 - **Localized UI** — All user-facing copy is in Traditional Chinese (zh-TW); backend enums are translated at the edge via canonical label maps.
@@ -29,8 +30,8 @@ PersonAI is the web frontend for an AI personal trainer. It pairs a live camera-
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) ≥ 1.0 (npm/pnpm/yarn also work, but `bun.lock` is the source of truth)
-- Node.js ≥ 20 (only required if you opt out of Bun)
+- [Bun](https://bun.sh/) 1.3.14 (matches CI; `bun.lock` is the source of truth)
+- Node.js 22.12 or newer supported LTS for the test tooling
 - A running [PersonAI backend](https://github.com/YinCheng0106/personai-api) for live pose analysis and REST data
 - PostgreSQL for Better Auth (Supabase Session Pooler in production)
 
@@ -42,8 +43,7 @@ git clone https://github.com/YinCheng0106/personai-web.git
 cd personai-web
 
 # Install dependencies
-bun install
-# or: npm install / pnpm install / yarn
+bun install --frozen-lockfile
 ```
 
 ### Environment Variables
@@ -75,8 +75,11 @@ cp .env.sample .env.local
 | `bun run typecheck`  | Type-check the project with `tsc --noEmit`.              |
 | `bun run format`     | Format `**/*.{ts,tsx}` with Prettier.                    |
 | `bun run test`       | Run Vitest component and contract tests.                 |
+| `bun run test:coverage` | Run V8 coverage gates and generate HTML / LCOV / JUnit. |
 | `bun run test:e2e`   | Run Playwright browser tests.                            |
 | `bun run auth:migrate` | Create/update Better Auth tables in `personai_auth`.    |
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the development workflow and [docs/TESTING.md](./docs/TESTING.md) for test setup, Codecov, and mock versus real integration boundaries.
 
 Open [http://localhost:3000](http://localhost:3000) once the dev server is running.
 
@@ -94,7 +97,7 @@ Components land in `src/components/ui/` using the `radix-luma` style with `neutr
 2. Run `bun run auth:migrate`; Better Auth owns this schema.
 3. Configure FastAPI with the matching issuer, audience, and `/api/auth/jwks` URL.
 
-REST and pose pages already use the live API. Legacy mock fixtures remain only for isolated UI development and are not used for authenticated application data.
+REST and pose pages use the authenticated API. Tests isolate API and hardware boundaries with MSW, controlled transports, and browser routes.
 
 ### Deployment gate
 
@@ -110,6 +113,7 @@ personai-web/
 │   │   ├── layout.tsx            # Root layout (ThemeProvider + Navbar)
 │   │   ├── page.tsx              # Dashboard
 │   │   ├── analyze/              # Live camera + pose HUD
+│   │   ├── pk/                   # Authenticated two-player exercise rooms
 │   │   ├── history/              # Heatmap + workout log
 │   │   ├── inbody/               # Body composition + calorie tools
 │   │   └── globals.css           # Tailwind v4 @theme tokens (OKLCH)
@@ -122,12 +126,12 @@ personai-web/
 │   │   ├── inbody/               # InBody views
 │   │   └── theme-provider.tsx    # next-themes wrapper
 │   ├── hooks/
-│   │   └── use-mock-pose.ts      # Mock pose stream for offline UI work
+│   │   └── use-pose-analysis.ts  # MediaPipe + authenticated Analyze socket
 │   ├── lib/
 │   │   ├── api.ts                # REST client (request<T>() helper)
 │   │   ├── socket.ts             # WebSocket adapter + frame normalization
 │   │   ├── auth.ts               # better-auth init
-│   │   ├── mock-data.ts          # MOCK_* fixtures
+│   │   ├── pose-messages.ts      # Landmark / pose_missing observations
 │   │   ├── constants.ts          # Label maps (zh-TW translations)
 │   │   ├── format.ts             # Display formatters
 │   │   └── utils.ts              # cn() and shared utilities

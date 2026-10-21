@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest"
 
-import { connectAnalyzeSocket, normalizeFrame } from "@/lib/socket"
+import {
+  connectAnalyzeSocket,
+  connectPKSocket,
+  normalizeFrame,
+} from "@/lib/socket"
 
 describe("pose socket contract", () => {
   it("normalizes frame identifiers, timing, and snake_case angles", () => {
@@ -13,6 +17,9 @@ describe("pose socket contract", () => {
       errors: [],
       confidence: 0.9,
       is_visible: true,
+      tracking_state: "ACTIVE",
+      tracking_hints: [],
+      form_errors: [],
       calories: 1.2,
     })
 
@@ -22,7 +29,33 @@ describe("pose socket contract", () => {
       reps: 3,
       state: "bottom",
       angles: { leftKnee: 91, rightKnee: 93 },
+      trackingState: "ACTIVE",
+      formErrors: [],
+      trackingHints: [],
     })
+  })
+
+  it("keeps unavailable angles null and separates tracking hints", () => {
+    const result = normalizeFrame({
+      frame_id: 13,
+      processing_ms: 1,
+      rep_count: 3,
+      state: "IDLE",
+      angles: { left_knee: null },
+      errors: [],
+      form_errors: [],
+      tracking_hints: ["SQUAT_KNEES_NOT_VISIBLE"],
+      tracking_state: "PAUSED",
+      confidence: 0.4,
+      is_visible: false,
+      calories: null,
+    })
+
+    expect(result.angles.leftKnee).toBeNull()
+    expect(result.formErrors).toEqual([])
+    expect(result.trackingHints).toEqual(["SQUAT_KNEES_NOT_VISIBLE"])
+    expect(result.trackingState).toBe("PAUSED")
+    expect(result.calories).toBeNull()
   })
 
   it("passes the JWT in Sec-WebSocket-Protocol instead of the URL", () => {
@@ -36,12 +69,40 @@ describe("pose socket contract", () => {
     })
     vi.stubGlobal("WebSocket", constructor)
 
-    connectAnalyzeSocket("squat", 70, "header.payload.signature", {
+    connectAnalyzeSocket("squat", "header.payload.signature", {
       onFrame: vi.fn(),
     })
 
     expect(constructor).toHaveBeenCalledWith(
-      "ws://localhost:8000/ws/analyze/squat?weight_kg=70",
+      "ws://localhost:8000/ws/analyze/squat",
+      ["personai.v1", "header.payload.signature"]
+    )
+    expect(constructor.mock.calls[0][0]).not.toContain("signature")
+    expect(constructor.mock.calls[0][0]).not.toContain("weight_kg")
+    vi.unstubAllGlobals()
+  })
+
+  it("authenticates the PK socket without putting the JWT in its URL", () => {
+    const constructor = vi.fn(function MockWebSocket(
+      this: Record<string, unknown>,
+      url: string,
+      protocols: string[]
+    ) {
+      this.url = url
+      this.protocols = protocols
+    })
+    vi.stubGlobal("WebSocket", constructor)
+
+    connectPKSocket("1234", "pushup", "header.payload.signature", {
+      onRoomState: vi.fn(),
+      onGameStart: vi.fn(),
+      onGameBegin: vi.fn(),
+      onGameEnd: vi.fn(),
+      onOpponentScore: vi.fn(),
+    })
+
+    expect(constructor).toHaveBeenCalledWith(
+      "ws://localhost:8000/ws/pk?room=1234&exercise_type=pushup",
       ["personai.v1", "header.payload.signature"]
     )
     expect(constructor.mock.calls[0][0]).not.toContain("signature")

@@ -1,58 +1,33 @@
-# CLAUDE.md
+# PersonAI frontend development
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/TESTING.md](docs/TESTING.md) for setup, quality gates, review expectations, and test boundaries. Use Bun and preserve `bun.lock`. UI copy uses Traditional Chinese (Taiwan); code identifiers and Conventional Commit messages use English.
 
 ## Commands
 
-Package manager is **bun** (see `bun.lock`).
+- `bun run dev` / `bun run dev:https`: Next.js development server
+- `bun run lint`: ESLint
+- `bun run typecheck`: `tsc --noEmit`
+- `bun run test`: Vitest, React Testing Library, and MSW
+- `bun run test:coverage`: V8 coverage, HTML, LCOV, and JUnit
+- `bun run test:e2e`: Playwright Chromium tests
+- `bun run build` / `bun run start`: production build / server
+- `bun run auth:migrate`: Better Auth schema migration against the configured development database
 
-- `bun dev` — Next.js dev server with Turbopack
-- `bun run build` / `bun start` — production build / serve
-- `bun run lint` — flat-config ESLint (`eslint-config-next` core-web-vitals + typescript)
-- `bun run typecheck` — `tsc --noEmit` (no test runner is configured)
-- `bun run format` — Prettier write across `**/*.{ts,tsx}`
-- `bunx shadcn@latest add <component>` — drop a shadcn/ui component into `src/components/ui` (style is `radix-luma`, base color `neutral`, icon library `hugeicons`)
+## Current architecture
 
-## Architecture
+Next.js 16 App Router, React 19, TypeScript, Tailwind v4, and shadcn primitives live in `src/`. The alias is `@/*` → `src/*`.
 
-**Stack:** Next.js 16 (App Router, RSC) + React 19 + Tailwind v4 + shadcn/ui + better-auth (Postgres). Source lives under `src/`; the only TS path alias is `@/* → ./src/*`.
+- `/`, `/history`, and `/inbody` use the authenticated REST client in `src/lib/api.ts`. Requests target `/wk/me`, `/body-profile/me`, and related endpoints. The legacy `/inbody/me` adapter remains for compatibility.
+- Better Auth lives in `src/lib/auth.ts`, with a PostgreSQL pool scoped to `personai_auth`, JWT/JWKS support, and the route `src/app/api/auth/[...all]/route.ts`. Client session/token access is in `src/lib/auth-client.ts`. `RequireAuth` controls private page content.
+- `/analyze` uses `src/hooks/use-pose-analysis.ts`, browser camera video, MediaPipe PoseLandmarker, and `connectAnalyzeSocket`. Raw video stays in the browser. The hook sends 33 keypoints or explicit `pose_missing`, with increasing frame ids and timestamps.
+- `src/lib/socket.ts` normalizes server frames and provides Analyze and PK WebSocket adapters. JWTs travel as `["personai.v1", token]` subprotocols, never query parameters. Analyze connects to `/ws/analyze/{exercise}` without a frontend weight override.
+- `/pk` shares the pose hook and uses a separate authenticated `/ws/pk` room socket. Only confirmed ACTIVE repetitions generate score updates; readiness and room lifecycle retain the existing protocol.
+- `/inbody` represents Body Profile `unknown`, `basic`, and `measured` states, with separate basic and measured data forms. Nullable values remain unknown; BMI and derived fields come from the API.
 
-**Routes (`src/app/`).** Four top-level pages share `RootLayout` (`layout.tsx`), which mounts `ThemeProvider` (next-themes) and the sticky `Navbar`:
+Keep snake_case → camelCase mapping at the API/socket boundary. Tracking hints are separate from form errors and must not increase workout error counts. Missing angles/calories are `null`; numeric zero remains a valid value. See [Pose Visibility Tracking Contract](docs/Pose_Visibility_Tracking_Contract_v1.md) before editing related behavior.
 
-- `/` dashboard — metric cards + weekly chart + goals + today's workouts
-- `/analyze` — live camera + pose HUD; client component
-- `/history` — heatmap + per-exercise summary + workout list
-- `/inbody` — BMI/composition cards + calorie estimator
+## Conventions and validation
 
-**Pose pipeline (the load-bearing part).** The `/analyze` page is wired against a Python backend that streams pose frames over WebSocket, but **currently consumes `useMockPose` instead of the real socket** for UI work without a backend running. The real adapter lives in `src/lib/socket.ts`:
+Use semantic theme tokens, `cn()` for conditional classes, and the existing enum/label maps for zh-TW copy. Prettier uses no semicolons, double quotes, two spaces, and the Tailwind plugin. Format only the files in scope when unrelated work is present.
 
-- `connectAnalyzeSocket(exercise, weightKg, handlers)` opens `${NEXT_PUBLIC_WS_BASE}/ws/analyze/<exercise>?weight_kg=<n>` (default `ws://localhost:8000`).
-- `normalizeFrame()` converts the server's snake_case `ServerFrame` (`rep_count`, `left_knee`, `is_visible`, …) into the camelCase `PoseData` the components consume. **All snake/camel translation lives here** — components only see `PoseData`.
-- To switch `/analyze` from mock to live, replace `useMockPose` in `src/app/analyze/page.tsx` with a `useEffect` that calls `connectAnalyzeSocket` and pushes frames into state. The `PoseData` shape is identical.
-
-**REST API (`src/lib/api.ts`).** Same backend at `${NEXT_PUBLIC_API_BASE}` (default `http://localhost:8000`). Endpoints: `/server`, `/wk/:userId[...]`, `/inbody/:userId[...]`. All requests go through one `request<T>()` helper; throws on non-2xx.
-
-**Mock data (`src/lib/mock-data.ts`).** Currently every page imports `MOCK_*` constants directly rather than calling `api`. When wiring real data, swap these imports for `api.*` calls — the response types match (`WorkoutRecord`, `DailySummary`, `ExerciseSummary`, `InBody`).
-
-**Auth (`src/lib/auth.ts`).** `better-auth` is initialized with a `pg.Pool` against `DATABASE_URL` and email/password enabled, but **no API route or middleware is wired up yet** — there is no `app/api/auth/[...all]/route.ts`. The Navbar avatar is a static "YC" placeholder.
-
-**Component layout.**
-
-- `src/components/ui/` — shadcn primitives + small bespoke wrappers (`metric-card`, `progress-bar`, `section-header`, `badge`).
-- `src/components/layout/` — `Navbar`, `PageContainer` (every page wraps content in `PageContainer` for consistent header/title/action slot).
-- `src/components/{dashboard,fitness,history,inbody}/` — feature-scoped composites. `fitness/` is the HUD: `CameraFrame` (react-camera-pro), `HUDOverlay`, `RepCounter`, `FsmStateIndicator`, `AngleDisplay`, `ErrorList`, `CalorieDisplay`.
-- `src/types/` — domain types (`pose`, `workout`, `inbody`, `user`). `EXERCISE_LABEL` / `FSM_LABEL` in `pose.ts` and `FORM_ERROR_LABEL` in `lib/constants.ts` are the canonical zh-TW translation maps for backend enum values.
-
-## Conventions
-
-- Prettier: no semicolons, double quotes, 2-space, `trailingComma: es5`, 80-col, `prettier-plugin-tailwindcss` enabled with `tailwindFunctions: ["cn", "cva"]`. Run `bun run format` before committing UI changes — Tailwind class ordering is part of the diff.
-- UI text is **zh-TW**. Backend enums (e.g. `"knee valgus detected"`, FSM states) are translated at the edge via the label maps above; don't hardcode Chinese strings against backend values elsewhere.
-- Tailwind v4 uses `@theme inline` with OKLCH tokens in `src/app/globals.css`. Reference semantic colors (`bg-background`, `text-muted-foreground`, `border-border`, `text-success`, `text-warning`, `text-info`) rather than raw palette colors so dark mode works.
-- Use `cn()` from `@/lib/utils` for conditional classes; HugeIcons via `<HugeiconsIcon icon={...} />`.
-
-## Gotchas
-
-- `components.json` and `.prettierrc` reference `app/globals.css`, but the file actually lives at `src/app/globals.css`. shadcn CLI and the prettier tailwind plugin may need that path corrected if you hit "stylesheet not found" issues.
-- `src/components/theme-provider.tsx` and `src/lib/utils.ts` exist under `src/` but the original `components.json` aliases (`@/components`, `@/lib/utils`, etc.) resolve correctly via the tsconfig `@/* → ./src/*` mapping — don't "fix" them back to root-level paths.
-- `src/store/` is empty; no global state manager is in use yet. Pages hold their own `useState`.
-- `.env` currently has a duplicated key (`BETTER_AUTH_SECRET` defined twice — the second line is meant to be `BETTER_AUTH_URL`). `DATABASE_URL` is referenced by `lib/auth.ts` but not present in `.env`.
+Vitest tests isolate remote services and hardware. Playwright includes fully mocked frontend cases and local Better Auth/PostgreSQL cases with mocked FastAPI. Neither establishes real cross-service integration or real-person pose accuracy. Do not describe a successful API mock, coverage threshold, or build as evidence of those behaviors.
