@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { usePoseAnalysis } from "@/hooks/use-pose-analysis"
 import { getAccessToken } from "@/lib/auth-client"
-import { connectPKSocket } from "@/lib/socket"
+import { connectPKSocket, type PKTiming } from "@/lib/socket"
 import { cn } from "@/lib/utils"
 import type { ExerciseType } from "@/types/pose"
 
@@ -50,6 +50,7 @@ function formatTime(seconds: number) {
 
 export default function GamePKPage() {
   const [gameState, setGameState] = useState<GameState>("lobby")
+  const [matchGeneration, setMatchGeneration] = useState(0)
   const [connection, setConnection] = useState<ConnectionState>("offline")
 
   const [roomId, setRoomId] = useState("")
@@ -81,6 +82,7 @@ export default function GamePKPage() {
   const phaseRef = useRef<GameState>("lobby")
   const attemptRef = useRef(0)
   const matchDeadlineRef = useRef(0)
+  const matchGenerationRef = useRef(0)
 
   const {
     pose,
@@ -93,47 +95,48 @@ export default function GamePKPage() {
     video,
   })
 
-  const leaveRoom = useCallback(() => {
-    const socket = socketRef.current
-    socketRef.current = null
-
-    socket?.close(1000, "User left room")
-
-    setGameState("lobby")
-    setConnection("offline")
-    setRoomId("")
+  const resetMatch = useCallback(() => {
+    setMatchGeneration(++matchGenerationRef.current)
+    matchDeadlineRef.current = 0
+    lastSentScoreRef.current = 0
     setIsReady(false)
     setOpponentReady(false)
-    setPlayerCount(0)
     setOpponentScore(0)
-
     setCountdown(PREPARE_SECONDS)
     setPrepareDeadline(0)
     setMatchDeadline(0)
     setMatchDuration(MATCH_SECONDS)
     setRemainingTime(MATCH_SECONDS)
-
     setFinalScore(0)
     setFinalOpponentScore(0)
     setFinalResult("draw")
-
     setVideo(null)
-    setError(null)
-
-    lastSentScoreRef.current = 0
-    phaseRef.current = "lobby"
-    attemptRef.current++
-    matchDeadlineRef.current = 0
-
     reset()
   }, [reset])
 
+  const leaveRoom = useCallback(() => {
+    const socket = socketRef.current
+    socketRef.current = null
+    phaseRef.current = "lobby"
+    attemptRef.current++
+    socket?.close(1000, "User left room")
+    setGameState("lobby")
+    setConnection("offline")
+    setRoomId("")
+    setPlayerCount(0)
+    setError(null)
+    resetMatch()
+  }, [resetMatch])
+
   useEffect(() => {
     const attempts = attemptRef
+    const generations = matchGenerationRef
     return () => {
       attempts.current++
-      socketRef.current?.close(1000, "Page closed")
+      generations.current++
+      const socket = socketRef.current
       socketRef.current = null
+      socket?.close(1000, "Page closed")
     }
   }, [])
 
@@ -156,6 +159,10 @@ export default function GamePKPage() {
         const token = await getAccessToken()
         if (attempt !== attemptRef.current) return
 
+        // Timing windows identify successive matches on this connection. Keep the
+        // seen windows after cancellation so a delayed start cannot replay one.
+        let latestTiming: PKTiming | null = null
+        const startedWindows = new Set<string>()
         const socket = connectPKSocket(targetRoomId, exercise, token, {
           onOpen: () => {
             if (socketRef.current !== socket) return
@@ -181,8 +188,7 @@ export default function GamePKPage() {
                 phaseRef.current === "playing"
               ) {
                 setError("對手已離開，比賽取消。重新加入後請再次準備。")
-                reset()
-                lastSentScoreRef.current = 0
+                resetMatch()
               }
               phaseRef.current = "room"
               setGameState("room")
@@ -193,7 +199,12 @@ export default function GamePKPage() {
           onGameStart: (countdownSeconds, durationSeconds, timing) => {
             if (socketRef.current !== socket) return
 
-            if (phaseRef.current !== "room") return
+            const windowKey = `${timing.startsAtMs}:${timing.endsAtMs}`
+            if (phaseRef.current !== "room" || startedWindows.has(windowKey))
+              return
+            startedWindows.add(windowKey)
+            latestTiming = timing
+            setMatchGeneration(++matchGenerationRef.current)
             phaseRef.current = "countdown"
             lastSentScoreRef.current = 0
 
@@ -227,7 +238,13 @@ export default function GamePKPage() {
           onGameBegin: (durationSeconds, timing) => {
             if (socketRef.current !== socket) return
 
-            if (phaseRef.current !== "countdown") return
+            if (
+              phaseRef.current !== "countdown" ||
+              !latestTiming ||
+              timing.startsAtMs !== latestTiming.startsAtMs ||
+              timing.endsAtMs !== latestTiming.endsAtMs
+            )
+              return
             phaseRef.current = "playing"
             const deadline = Math.min(
               matchDeadlineRef.current,
@@ -252,6 +269,7 @@ export default function GamePKPage() {
               phaseRef.current !== "playing"
             )
               return
+            matchGenerationRef.current++
             phaseRef.current = "finished"
             setFinalScore(result.score)
             setFinalOpponentScore(result.opponentScore)
@@ -288,9 +306,8 @@ export default function GamePKPage() {
             if (phaseRef.current !== "finished") {
               phaseRef.current = "lobby"
               setGameState("lobby")
-              setOpponentScore(0)
-              setVideo(null)
-              reset()
+              setRoomId("")
+              resetMatch()
             }
             if (event.code !== 1000) {
               setError(
@@ -307,7 +324,7 @@ export default function GamePKPage() {
         setError("無法取得登入憑證，請重新登入後再試。")
       }
     },
-    [exercise, reset]
+    [exercise, reset, resetMatch]
   )
 
   // 顯示 10 秒準備倒數。
@@ -315,32 +332,44 @@ export default function GamePKPage() {
   useEffect(() => {
     if (gameState !== "countdown") return
 
+    const generation = matchGenerationRef.current
     const endAt = prepareDeadline
 
     const timer = window.setInterval(() => {
+      if (
+        matchGenerationRef.current !== generation ||
+        phaseRef.current !== "countdown"
+      )
+        return
       const left = Math.max(0, Math.ceil((endAt - performance.now()) / 1000))
 
       setCountdown(left)
     }, 100)
 
     return () => window.clearInterval(timer)
-  }, [gameState, prepareDeadline])
+  }, [gameState, prepareDeadline, matchGeneration])
 
   // 正式比賽時間只用來顯示倒數。
   // 最終結束與分數仍以後端 GAME_END 為準。
   useEffect(() => {
     if (gameState !== "playing") return
 
+    const generation = matchGenerationRef.current
     const endAt = matchDeadline
 
     const timer = window.setInterval(() => {
+      if (
+        matchGenerationRef.current !== generation ||
+        phaseRef.current !== "playing"
+      )
+        return
       const left = Math.max(0, Math.ceil((endAt - performance.now()) / 1000))
 
       setRemainingTime(left)
     }, 100)
 
     return () => window.clearInterval(timer)
-  }, [gameState, matchDeadline])
+  }, [gameState, matchDeadline, matchGeneration])
 
   // 只有正式比賽期間才傳送分數。
   useEffect(() => {

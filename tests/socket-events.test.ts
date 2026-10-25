@@ -165,4 +165,129 @@ describe("WebSocket event boundaries", () => {
       expect.objectContaining({ code: 4409 })
     )
   })
+
+  it.each([
+    ["GAME_START", "onGameStart"],
+    ["GAME_BEGIN", "onGameBegin"],
+    ["GAME_END", "onGameEnd"],
+  ])("parses the documented %s payload exactly", (type, callback) => {
+    const handlers = {
+      onRoomState: vi.fn(),
+      onGameStart: vi.fn(),
+      onGameBegin: vi.fn(),
+      onGameEnd: vi.fn(),
+      onOpponentScore: vi.fn(),
+    }
+    connectPKSocket("1234", "squat", "jwt", handlers)
+    const socket = TestSocket.instances[0]
+    const timing = {
+      server_time_ms: 1_000_000,
+      starts_at_ms: 1_010_000,
+      ends_at_ms: 1_070_000,
+    }
+    if (type === "GAME_END") {
+      socket.receive({ type, score: 0, opponent_score: 10_000, result: "draw" })
+      expect(handlers.onGameEnd).toHaveBeenCalledExactlyOnceWith({
+        score: 0,
+        opponentScore: 10_000,
+        result: "draw",
+      })
+    } else {
+      socket.receive({
+        type,
+        countdown_seconds: 10,
+        duration_seconds: 60,
+        ...timing,
+      })
+      const expectedTiming = {
+        serverTimeMs: timing.server_time_ms,
+        startsAtMs: timing.starts_at_ms,
+        endsAtMs: timing.ends_at_ms,
+      }
+      if (type === "GAME_START")
+        expect(handlers.onGameStart).toHaveBeenCalledExactlyOnceWith(
+          10,
+          60,
+          expectedTiming
+        )
+      else
+        expect(handlers.onGameBegin).toHaveBeenCalledExactlyOnceWith(
+          60,
+          expectedTiming
+        )
+    }
+    expect(
+      handlers[callback as "onGameStart" | "onGameBegin" | "onGameEnd"]
+    ).toHaveBeenCalledOnce()
+  })
+
+  it.each([
+    { type: "GAME_START", countdown_seconds: 9 },
+    { type: "GAME_START", countdown_seconds: "10" },
+    { type: "GAME_BEGIN", duration_seconds: 59 },
+    { type: "GAME_BEGIN", duration_seconds: "60" },
+    { type: "GAME_START", server_time_ms: null },
+    { type: "GAME_BEGIN", starts_at_ms: "1010000" },
+    { type: "GAME_START", ends_at_ms: -1 },
+    { type: "GAME_BEGIN", ends_at_ms: 1_000_000 },
+    { type: "GAME_START", ends_at_ms: null },
+    { type: "GAME_END", score: -1 },
+    { type: "GAME_END", score: 1.5 },
+    { type: "GAME_END", score: 10_001 },
+    { type: "GAME_END", score: "2" },
+    { type: "GAME_END", opponent_score: null },
+    { type: "GAME_END", result: "victory" },
+    { type: "GAME_END", result: null },
+  ])("rejects malformed timer/result fields: %j", (override) => {
+    const handlers = {
+      onRoomState: vi.fn(),
+      onGameStart: vi.fn(),
+      onGameBegin: vi.fn(),
+      onGameEnd: vi.fn(),
+      onOpponentScore: vi.fn(),
+    }
+    connectPKSocket("1234", "squat", "jwt", handlers)
+    TestSocket.instances[0].receive({
+      countdown_seconds: 10,
+      duration_seconds: 60,
+      server_time_ms: 1_000_000,
+      starts_at_ms: 1_010_000,
+      ends_at_ms: 1_070_000,
+      score: 2,
+      opponent_score: 4,
+      result: "lose",
+      ...override,
+    })
+    expect(handlers.onGameStart).not.toHaveBeenCalled()
+    expect(handlers.onGameBegin).not.toHaveBeenCalled()
+    expect(handlers.onGameEnd).not.toHaveBeenCalled()
+  })
+
+  it.each(["GAME_START", "GAME_BEGIN"])(
+    "requires all documented timing fields for %s",
+    (type) => {
+      for (const missing of ["server_time_ms", "starts_at_ms", "ends_at_ms"]) {
+        const handlers = {
+          onRoomState: vi.fn(),
+          onGameStart: vi.fn(),
+          onGameBegin: vi.fn(),
+          onGameEnd: vi.fn(),
+          onOpponentScore: vi.fn(),
+        }
+        connectPKSocket("1234", "squat", "jwt", handlers)
+        const event: Record<string, unknown> = {
+          type,
+          countdown_seconds: 10,
+          duration_seconds: 60,
+          server_time_ms: 1_000_000,
+          starts_at_ms: 1_010_000,
+          ends_at_ms: 1_070_000,
+        }
+        delete event[missing]
+        TestSocket.instances.at(-1)!.receive(event)
+        expect(handlers.onGameStart).not.toHaveBeenCalled()
+        expect(handlers.onGameBegin).not.toHaveBeenCalled()
+      }
+    }
+  )
 })

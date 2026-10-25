@@ -185,4 +185,44 @@ describe("pose analysis lifecycle with a controlled camera/model boundary", () =
     act(() => socket.close(1006))
     expect(result.current.status).toBe("error")
   })
+
+  it("isolates an old Analyze socket when a new gameplay session starts", async () => {
+    const { result, rerender } = setup()
+    const oldSocket = await connected()
+    act(() => oldSocket.receive(serverFrame({ frame_id: 10, rep_count: 5 })))
+    rerender({ active: false })
+    act(() => result.current.reset())
+    rerender({ active: true })
+    await waitFor(() => expect(TestSocket.instances).toHaveLength(2))
+    const nextSocket = TestSocket.instances[1]
+    act(() => {
+      nextSocket.open()
+      oldSocket.open()
+      oldSocket.receive(serverFrame({ frame_id: 99, rep_count: 99 }))
+      oldSocket.onerror?.(new Event("error"))
+      oldSocket.receive({ error: "Retired session error" })
+      oldSocket.close(1006)
+    })
+    expect(result.current.pose).toEqual(EMPTY_POSE)
+    expect(result.current.status).toBe("live")
+    expect(result.current.error).toBeNull()
+    act(() => nextSocket.receive(serverFrame({ frame_id: 1, rep_count: 1 })))
+    expect(result.current.pose.reps).toBe(1)
+    expect(boundary.token).toHaveBeenCalledTimes(2)
+  })
+
+  it("ignores a pending JWT from gameplay that stopped before connecting", async () => {
+    const token = deferred<string>()
+    boundary.token.mockReturnValueOnce(token.promise)
+    const { rerender } = setup()
+    rerender({ active: false })
+    rerender({ active: true })
+    await waitFor(() => expect(TestSocket.instances).toHaveLength(1))
+    await act(async () => token.resolve("retired-gameplay-jwt"))
+    expect(TestSocket.instances).toHaveLength(1)
+    expect(TestSocket.instances[0].protocols).toEqual([
+      "personai.v1",
+      "signed-jwt",
+    ])
+  })
 })
