@@ -36,7 +36,11 @@ beforeEach(() => {
   TestSocket.instances = []
   vi.stubGlobal("WebSocket", TestSocket)
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 async function joinRoom() {
   const user = userEvent.setup()
@@ -273,5 +277,335 @@ describe("PK page with the real WebSocket adapter", () => {
     unmount()
     await act(async () => resolve("late-jwt"))
     expect(TestSocket.instances).toHaveLength(0)
+  })
+
+  it.each([
+    ["win", "你贏了！", 2, 7],
+    ["lose", "對手獲勝", 9, 1],
+    ["draw", "平手", 4, 4],
+  ])(
+    "uses the server's %s result and final scores without deriving a winner",
+    async (result, label, score, opponentScore) => {
+      const { socket, rerender } = await joinRoom()
+      act(() => socket.receive(startEvent()))
+      act(() => socket.receive(beginEvent()))
+      state.pose = normalizeFrame(serverFrame({ rep_count: 2 }))
+      rerender(<PKPage />)
+      const sent = socket.sent.length
+      act(() =>
+        socket.receive({
+          type: "GAME_END",
+          score,
+          opponent_score: opponentScore,
+          result,
+        })
+      )
+      expect(screen.getByText(label)).toBeVisible()
+      expect(
+        screen.getAllByText(String(score), { exact: true })[0]
+      ).toBeVisible()
+      expect(
+        screen.getAllByText(String(opponentScore), { exact: true })[0]
+      ).toBeVisible()
+      state.pose = normalizeFrame(serverFrame({ rep_count: 10 }))
+      rerender(<PKPage />)
+      act(() => {
+        socket.receive(startEvent())
+        socket.receive(beginEvent())
+        socket.receive({ type: "OPPONENT_SCORE", score: 99 })
+      })
+      expect(socket.sent).toHaveLength(sent)
+      expect(screen.getByText(label)).toBeVisible()
+      expect(screen.queryByText("99", { exact: true })).not.toBeInTheDocument()
+    }
+  )
+
+  it("does not send ACTIVE reps during preparation or start on an out-of-order begin", async () => {
+    const { socket, rerender } = await joinRoom()
+    act(() => socket.receive(beginEvent()))
+    expect(screen.queryByText("你的分數")).not.toBeInTheDocument()
+    act(() =>
+      socket.receive({
+        type: "GAME_END",
+        score: 0,
+        opponent_score: 0,
+        result: "draw",
+      })
+    )
+    expect(screen.queryByText("平手")).not.toBeInTheDocument()
+    act(() => socket.receive(startEvent()))
+    state.pose = normalizeFrame(serverFrame({ rep_count: 3 }))
+    rerender(<PKPage />)
+    expect(socket.sent).toEqual([])
+    expect(screen.getByText("準備開始！")).toBeVisible()
+  })
+
+  it("ignores a begin with a different match window and permits a fresh match after cancellation", async () => {
+    const { socket } = await joinRoom()
+    act(() => socket.receive(startEvent()))
+    room(socket, 1, false)
+    act(() => socket.receive(startEvent()))
+    expect(screen.queryByText("準備開始！")).not.toBeInTheDocument()
+    const nextStart = {
+      ...startEvent(),
+      server_time_ms: 2_000_000,
+      starts_at_ms: 2_010_000,
+      ends_at_ms: 2_070_000,
+    }
+    room(socket)
+    act(() => socket.receive(nextStart))
+    expect(screen.getByText("準備開始！")).toBeVisible()
+    act(() => socket.receive(beginEvent()))
+    expect(screen.queryByText("你的分數")).not.toBeInTheDocument()
+    act(() =>
+      socket.receive({
+        ...beginEvent(),
+        server_time_ms: 2_010_000,
+        starts_at_ms: 2_010_000,
+        ends_at_ms: 2_070_000,
+      })
+    )
+    expect(screen.getByText("01:00")).toBeVisible()
+  })
+
+  it.each(["countdown", "playing"])(
+    "cleans up when leaving during %s and isolates the next connection",
+    async (phase) => {
+      const { socket, user, rerender } = await joinRoom()
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+      act(() => socket.receive(startEvent()))
+      if (phase === "playing") act(() => socket.receive(beginEvent()))
+      expect(vi.getTimerCount()).toBe(1)
+      await user.click(screen.getByRole("button", { name: "離開房間" }))
+      expect(vi.getTimerCount()).toBe(0)
+      await user.click(screen.getByRole("button", { name: "加入" }))
+      await act(async () => {})
+      const nextSocket = TestSocket.instances[1]
+      act(() => nextSocket.open())
+      act(() => {
+        socket.open()
+        socket.receive(startEvent())
+        socket.receive(beginEvent())
+        socket.receive({
+          type: "GAME_END",
+          score: 99,
+          opponent_score: 0,
+          result: "win",
+        })
+        socket.onerror?.(new Event("error"))
+        socket.close(4401)
+      })
+      expect(screen.getByText("已連線 · 房號 1234")).toBeVisible()
+      expect(
+        screen.queryByText("登入已失效，請重新登入。")
+      ).not.toBeInTheDocument()
+      act(() => nextSocket.receive(startEvent()))
+      act(() => nextSocket.receive(beginEvent()))
+      state.pose = normalizeFrame(serverFrame({ rep_count: 1 }))
+      rerender(<PKPage />)
+      expect(nextSocket.sent.map((value) => JSON.parse(value))).toEqual([
+        { type: "SCORE_UPDATE", score: 1 },
+      ])
+    }
+  )
+
+  it.each(["countdown", "playing"])(
+    "cleans up a disconnect during %s and fetches a new JWT on rejoin",
+    async (phase) => {
+      const { socket, user, rerender } = await joinRoom()
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+      act(() => socket.receive(startEvent()))
+      if (phase === "playing") act(() => socket.receive(beginEvent()))
+      act(() => socket.close(1006))
+      expect(vi.getTimerCount()).toBe(0)
+      state.pose = normalizeFrame(serverFrame({ rep_count: 3 }))
+      rerender(<PKPage />)
+      expect(socket.sent).toEqual([])
+      state.token.mockResolvedValue("fresh-jwt")
+      await user.clear(screen.getByLabelText("4 位數房號"))
+      await user.type(screen.getByLabelText("4 位數房號"), "5678")
+      await user.click(screen.getByRole("button", { name: "加入" }))
+      await act(async () => {})
+      const nextSocket = TestSocket.instances[1]
+      expect(nextSocket.protocols).toEqual(["personai.v1", "fresh-jwt"])
+      expect(new URL(nextSocket.url).searchParams.get("room")).toBe("5678")
+      act(() => nextSocket.open())
+      act(() => nextSocket.receive(startEvent()))
+      expect(screen.getByText("準備開始！")).toBeVisible()
+      expect(screen.getByText("10", { exact: true })).toBeVisible()
+    }
+  )
+
+  it.each(["countdown", "playing"])(
+    "removes timers on unmount during %s",
+    async (phase) => {
+      const { socket, unmount } = await joinRoom()
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+      act(() => socket.receive(startEvent()))
+      if (phase === "playing") act(() => socket.receive(beginEvent()))
+      unmount()
+      expect(vi.getTimerCount()).toBe(0)
+      expect(socket.closes).toContainEqual({
+        code: 1000,
+        reason: "Page closed",
+      })
+      const resetCount = state.reset.mock.calls.length
+      act(() => {
+        socket.receive(startEvent())
+        socket.receive(beginEvent())
+      })
+      expect(state.reset).toHaveBeenCalledTimes(resetCount)
+    }
+  )
+
+  it.each(["countdown", "playing"])(
+    "ignores a retired %s interval callback after a new match starts",
+    async (phase) => {
+      const { socket } = await joinRoom()
+      vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+      vi.spyOn(performance, "now").mockReturnValue(1000)
+      const intervals = vi.spyOn(window, "setInterval")
+      act(() => socket.receive(startEvent()))
+      if (phase === "playing") act(() => socket.receive(beginEvent()))
+      const oldTick = intervals.mock.calls.at(-1)![0] as () => void
+      room(socket, 1, false)
+      act(() =>
+        socket.receive({
+          ...startEvent(),
+          server_time_ms: 2_000_000,
+          starts_at_ms: 2_010_000,
+          ends_at_ms: 2_070_000,
+        })
+      )
+      if (phase === "playing")
+        act(() =>
+          socket.receive({
+            ...beginEvent(),
+            server_time_ms: 2_010_000,
+            starts_at_ms: 2_010_000,
+            ends_at_ms: 2_070_000,
+          })
+        )
+      vi.spyOn(performance, "now").mockReturnValue(6000)
+      act(() => vi.advanceTimersByTime(100))
+      const expected = phase === "playing" ? "00:55" : "5"
+      expect(screen.getByText(expected, { exact: true })).toBeVisible()
+      // A callback queued before clearInterval must not mutate the next match.
+      vi.spyOn(performance, "now").mockReturnValue(11_000)
+      act(() => oldTick())
+      expect(screen.getByText(expected, { exact: true })).toBeVisible()
+    }
+  )
+
+  it("accepts a new window after cancellation even if the server wall clock moved backwards", async () => {
+    const { socket } = await joinRoom()
+    act(() => socket.receive(startEvent()))
+    room(socket, 1, false)
+    act(() =>
+      socket.receive({
+        ...startEvent(),
+        server_time_ms: 500_000,
+        starts_at_ms: 510_000,
+        ends_at_ms: 570_000,
+      })
+    )
+    expect(screen.getByText("準備開始！")).toBeVisible()
+    act(() =>
+      socket.receive({
+        ...beginEvent(),
+        server_time_ms: 510_000,
+        starts_at_ms: 510_000,
+        ends_at_ms: 570_000,
+      })
+    )
+    expect(screen.getByText("你的分數")).toBeVisible()
+  })
+
+  it("accepts a server result during preparation when the server skips an expired playing period", async () => {
+    const { socket } = await joinRoom()
+    act(() => socket.receive(startEvent()))
+    act(() =>
+      socket.receive({
+        type: "GAME_END",
+        score: 0,
+        opponent_score: 0,
+        result: "draw",
+      })
+    )
+    expect(screen.getByText("平手")).toBeVisible()
+    act(() => socket.close(1006))
+    expect(screen.getByText("平手")).toBeVisible()
+    expect(screen.getByText("對戰連線已中斷，請重新加入。")).toBeVisible()
+  })
+
+  it("replaces the countdown interval when cancellation and restart are batched", async () => {
+    const { socket } = await joinRoom()
+    let now = 1000
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] })
+    vi.spyOn(performance, "now").mockImplementation(() => now)
+    act(() => socket.receive(startEvent()))
+    act(() => {
+      socket.receive({
+        type: "ROOM_STATE",
+        player_count: 1,
+        opponent_ready: false,
+        opponent_score: 0,
+        exercise_type: "squat",
+        phase: "waiting",
+      })
+      socket.receive({
+        ...startEvent(),
+        server_time_ms: 2_000_000,
+        starts_at_ms: 2_010_000,
+        ends_at_ms: 2_070_000,
+      })
+    })
+    now += 1000
+    act(() => vi.advanceTimersByTime(100))
+    expect(screen.getByText("9", { exact: true })).toBeVisible()
+    expect(vi.getTimerCount()).toBe(1)
+  })
+
+  it("blocks scores while the transport is closing before its close callback", async () => {
+    const { socket, user, rerender } = await joinRoom()
+    room(socket)
+    socket.readyState = 2 // CLOSING, before the close event is dispatched.
+    await user.click(screen.getByRole("button", { name: "準備完成" }))
+    expect(socket.sent).toEqual([])
+    socket.readyState = TestSocket.OPEN
+    act(() => socket.receive(startEvent()))
+    act(() => socket.receive(beginEvent()))
+    socket.readyState = 2
+    state.pose = normalizeFrame(serverFrame({ rep_count: 1 }))
+    rerender(<PKPage />)
+    expect(socket.sent).toEqual([])
+    act(() => socket.close(1000))
+    expect(screen.getByRole("button", { name: "建立對戰房間" })).toBeVisible()
+    expect(
+      screen.queryByText("對戰連線已中斷，請重新加入。")
+    ).not.toBeInTheDocument()
+  })
+
+  it("applies readiness snapshots, reports current socket errors, and ignores retired room events", async () => {
+    const { socket, user } = await joinRoom()
+    act(() =>
+      socket.receive({
+        type: "ROOM_STATE",
+        player_count: 2,
+        ready: true,
+        opponent_ready: false,
+        opponent_score: 0,
+        exercise_type: "squat",
+        phase: "waiting",
+      })
+    )
+    expect(screen.getByRole("button", { name: "取消準備" })).toBeVisible()
+    act(() => socket.onerror?.(new Event("error")))
+    expect(
+      screen.getByText("無法連線至對戰服務，請確認後端是否已啟動。")
+    ).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "離開房間" }))
+    room(socket)
+    expect(screen.getByRole("button", { name: "建立對戰房間" })).toBeVisible()
   })
 })

@@ -74,7 +74,22 @@ for (const width of [1280, 390]) {
         path: testInfo.outputPath("countdown.png"),
         fullPage: true,
       })
-      await page.clock.fastForward(10_000)
+      await page.clock.fastForward(4000)
+      await expect(
+        page.getByRole("main").getByText("6", { exact: true })
+      ).toBeVisible()
+      transport.send(
+        JSON.stringify({
+          type: "GAME_START",
+          countdown_seconds: 10,
+          duration_seconds: 60,
+          ...timing,
+        })
+      )
+      await expect(
+        page.getByRole("main").getByText("6", { exact: true })
+      ).toBeVisible()
+      await page.clock.fastForward(6000)
       await expect(
         page.getByRole("main").getByText("0", { exact: true })
       ).toBeVisible()
@@ -88,7 +103,18 @@ for (const width of [1280, 390]) {
         })
       )
       await expect(page.getByText("01:00")).toBeVisible()
-      await page.clock.fastForward(60_000)
+      await page.clock.fastForward(5000)
+      await expect(page.getByText("00:55")).toBeVisible()
+      transport.send(
+        JSON.stringify({
+          type: "GAME_BEGIN",
+          duration_seconds: 60,
+          ...timing,
+          server_time_ms: 1_010_000,
+        })
+      )
+      await expect(page.getByText("00:55")).toBeVisible()
+      await page.clock.fastForward(55_000)
       await expect(page.getByText("00:00")).toBeVisible()
       transport.send(
         JSON.stringify({
@@ -115,6 +141,40 @@ for (const width of [1280, 390]) {
         fullPage: true,
       })
       await page.getByRole("button", { name: "返回 PK 大廳" }).click()
+      await expect(
+        page.getByRole("button", { name: "建立對戰房間" })
+      ).toBeVisible()
+      await page.getByLabel("4 位數房號").fill("5678")
+      await page.getByRole("button", { name: "加入", exact: true }).click()
+      await expect(page.getByText("已連線 · 房號 5678")).toBeVisible()
+      transport.send(
+        JSON.stringify({
+          type: "GAME_START",
+          countdown_seconds: 10,
+          duration_seconds: 60,
+          ...timing,
+        })
+      )
+      await expect(page.getByText("準備開始！")).toBeVisible()
+      transport.close({ code: 1011, reason: "Fixture disconnect" })
+      await expect(page.getByText("對戰連線已中斷，請重新加入。")).toBeVisible()
+      await expect(
+        page.getByRole("button", { name: "加入", exact: true })
+      ).toBeEnabled()
+      await page.getByRole("button", { name: "加入", exact: true }).click()
+      await expect(page.getByText("已連線 · 房號 5678")).toBeVisible()
+      transport.send(
+        JSON.stringify({
+          type: "GAME_START",
+          countdown_seconds: 10,
+          duration_seconds: 60,
+          ...timing,
+        })
+      )
+      await expect(
+        page.getByRole("main").getByText("10", { exact: true })
+      ).toBeVisible()
+      await page.getByRole("button", { name: "離開房間" }).click()
       await expect(
         page.getByRole("button", { name: "建立對戰房間" })
       ).toBeVisible()

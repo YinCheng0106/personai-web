@@ -28,6 +28,23 @@ stops analysis and score sends, but final scores/results require `GAME_END`.
 One-way transport delay can still make display clocks slightly different;
 server receipt time, not either browser's display clock, decides score eligibility.
 
+The frontend accepts `GAME_BEGIN` only for the exact start/end window accepted
+from `GAME_START`. Seen windows stay retired after an interrupted match on the
+same connection; a fresh window can start after both players prepare again.
+Windows are compared by identity rather than ascending epoch time, so a server
+wall-clock correction between matches does not prevent a restart. Each local
+match has a generation: leaving, cancellation, disconnect, completion and unmount
+invalidate queued timer callbacks. A new generation also restarts the interval
+when cancellation/restart are batched into one React render with equal deadlines.
+
+`GAME_END` has no match identifier or timing fields. The frontend does not invent
+one: it accepts results only during countdown/playing on the current connection,
+then keeps the first final result immutable. As in the backend implementation,
+results rely on the ordered WebSocket stream and serialized room lifecycle. A
+protocol that replays messages across matches would need a shared match identity;
+the current client cannot classify an arbitrarily replayed, otherwise valid
+`GAME_END` within a subsequent active match on the same socket.
+
 Well-formed score updates in preparation or after expiration are ignored, so
 in-flight frames cannot erase results by disconnecting a player. In-flight scores
 after an interrupted match are also ignored until the next match. Fresh waiting-room
