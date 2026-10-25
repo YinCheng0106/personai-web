@@ -43,6 +43,9 @@ export default defineConfig({
 
       AUTH_ISSUER: "http://localhost:3000",
       AUTH_AUDIENCE: "personai-api",
+      // Browser tests must never send real recovery email, even with local env files.
+      RESEND_API_KEY: "",
+      RESEND_FROM_EMAIL: "",
     },
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
