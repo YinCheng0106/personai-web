@@ -1,11 +1,18 @@
 import { betterAuth } from "better-auth"
 import { APIError, isAPIError } from "better-auth/api"
+import { verifyPassword } from "better-auth/crypto"
 import { jwt } from "better-auth/plugins"
 import { Pool } from "pg"
 import { after } from "next/server"
 import { createHmac } from "node:crypto"
 
 import { createAuthDatabase } from "./auth-database"
+import {
+  clientAddress,
+  recoveryEmail,
+  recoveryOriginAllowed,
+  withClientAddress,
+} from "./auth-request"
 import { sendResetEmail, type ResetEmail } from "./reset-email"
 
 const authIssuer = process.env.AUTH_ISSUER ?? "http://localhost:3000"
@@ -27,12 +34,21 @@ export function createPersonaiAuth({
   deliver = sendResetEmail,
   background = (promise: Promise<unknown>) =>
     after(() => promise.then(() => {})),
+  clientIpHeader = process.env.PERSONAI_TRUSTED_CLIENT_IP_HEADER,
+  rateLimitPool = new Pool({
+    ...pool.options,
+    max: 2,
+    connectionTimeoutMillis: 5000,
+    allowExitOnIdle: true,
+  }),
 }: {
   pool?: Pool
   deliver?: (email: ResetEmail) => Promise<void>
   background?: (promise: Promise<unknown>) => void
+  clientIpHeader?: string
+  rateLimitPool?: Pool
 } = {}) {
-  const db = createAuthDatabase(pool)
+  const db = createAuthDatabase(pool, rateLimitPool)
   const instance = betterAuth({
     appName: "PersonAI",
     baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
@@ -51,6 +67,8 @@ export function createPersonaiAuth({
     rateLimit: {
       enabled: true,
       storage: "database",
+      window: 10,
+      customStorage: db.rateLimitStorage,
       customRules: {
         "/request-password-reset": { window: 60, max: 5 },
         "/reset-password": { window: 60, max: 10 },
@@ -63,16 +81,39 @@ export function createPersonaiAuth({
       maxPasswordLength: 128,
       resetPasswordTokenExpiresIn: 15 * 60,
       revokeSessionsOnPasswordReset: true,
+      password: {
+        verify: async (input) => {
+          const valid = await verifyPassword(input)
+          if (valid) db.rememberVerifiedHash(input.hash)
+          return valid
+        },
+      },
       sendResetPassword: async (email) => {
         await deliver(email).catch(() => {
           console.error("Password reset email delivery failed")
         })
       },
     },
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session, context) => {
+            if (
+              context?.path === "/sign-in/email" &&
+              !(await db.credentialIsCurrent(session.userId))
+            )
+              throw new APIError("UNAUTHORIZED", {
+                message: "Invalid email or password",
+              })
+          },
+        },
+      },
+    },
     advanced: {
       disableOriginCheck: false,
       disableCSRFCheck: false,
       backgroundTasks: { handler: background },
+      ipAddress: { ipAddressHeaders: ["x-personai-client-ip"] },
       database: {
         generateId: "uuid",
       },
@@ -140,21 +181,8 @@ export function createPersonaiAuth({
         } catch {
           return Response.json({ message: "無效的請求。" }, { status: 400 })
         }
-        if (!body || typeof body !== "object")
+        if (!body || typeof body !== "object" || Array.isArray(body))
           return Response.json({ message: "無效的請求。" }, { status: 400 })
-        // A database-wide budget cannot be bypassed with forged proxy headers.
-        if (
-          !(await db.allow(
-            isRequest ? "reset-request-global" : "reset-submit-global",
-            isRequest ? 30 : 60,
-            60_000
-          ))
-        ) {
-          return Response.json(
-            { message: "請求過於頻繁，請稍後再試。" },
-            { status: 429, headers: { "Retry-After": "60" } }
-          )
-        }
         if (isRequest) {
           const expected = new URL(
             "/reset-password",
@@ -165,26 +193,74 @@ export function createPersonaiAuth({
               { message: "無效的重設目的地。" },
               { status: 400 }
             )
-          if (
-            typeof body.email !== "string" ||
-            body.email.length > 254 ||
-            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)
-          ) {
+          if (!recoveryEmail.safeParse(body.email).success) {
             return Response.json(
               { message: "請輸入有效的電子郵件。" },
               { status: 400 }
             )
           }
-          const secret = process.env.BETTER_AUTH_SECRET
-          if (!secret) return unavailable()
+        } else if (
+          typeof body.token !== "string" ||
+          !/^[A-Za-z0-9]{24}$/.test(body.token) ||
+          typeof body.newPassword !== "string" ||
+          body.newPassword.length < 8 ||
+          body.newPassword.length > 128
+        )
+          return Response.json(
+            { message: "重設連結無效或已失效。" },
+            { status: 400 }
+          )
+        if (
+          request.headers
+            .get("content-type")
+            ?.split(";")[0]
+            .trim()
+            .toLowerCase() !== "application/json"
+        )
+          return Response.json({ message: "無效的內容類型。" }, { status: 415 })
+        if (!recoveryOriginAllowed(request, trustedOrigins))
+          return Response.json({ message: "無效的來源。" }, { status: 403 })
+        const address = clientAddress(request, clientIpHeader)
+        const secret = process.env.BETTER_AUTH_SECRET
+        if (!address || !secret) return unavailable()
+        const sourceKey = createHmac("sha256", secret)
+          .update(address)
+          .digest("hex")
+        const limited = () =>
+          Response.json(
+            { message: "請求過於頻繁，請稍後再試。" },
+            { status: 429, headers: { "Retry-After": "60" } }
+          )
+        // A single source can consume at most 5/30 requests or 10/60 submits.
+        // Refused and per-email-suppressed traffic never debits shared capacity.
+        if (
+          !(await db.allow(
+            `reset-source:${isRequest ? "request" : "submit"}:${sourceKey}`,
+            isRequest ? 5 : 10,
+            60_000
+          ))
+        )
+          return limited()
+        if (isRequest) {
           const key = createHmac("sha256", secret)
-            .update(body.email.trim().toLowerCase())
+            .update(body.email.toLowerCase())
             .digest("hex")
           if (
             !(await db.allow(`reset-email:${key}`, 1, 60_000)) ||
             !(await db.allow(`reset-hour:${key}`, 3, 3_600_000))
           )
             return generic()
+        }
+        if (
+          !(await db.allow(
+            isRequest ? "reset-request-global" : "reset-submit-global",
+            isRequest ? 30 : 60,
+            60_000
+          ))
+        )
+          return limited()
+        request = withClientAddress(request, address)
+        if (isRequest) {
           const response = await instance.handler(request)
           return response.ok
             ? generic()
@@ -192,20 +268,21 @@ export function createPersonaiAuth({
               ? response
               : unavailable()
         }
-        if (
-          typeof body.token !== "string" ||
-          !/^[A-Za-z0-9]{24}$/.test(body.token)
-        )
-          return Response.json(
-            { message: "重設連結無效或已失效。" },
-            { status: 400 }
-          )
         return await db.reset(
           body.token,
           () => instance.handler(request),
           (response) => response.ok
         )
       }
+      const address = clientAddress(request, clientIpHeader)
+      const publicJwks = request.method === "GET" && path === "/api/auth/jwks"
+      if (!address && !publicJwks) return unavailable()
+      request = withClientAddress(request, address)
+      if (request.method === "POST" && path === "/api/auth/sign-in/email")
+        return await db.login(
+          () => instance.handler(request),
+          (response) => response.ok
+        )
       return await instance.handler(request)
     } catch {
       return unavailable()
@@ -224,11 +301,38 @@ export function createPersonaiAuth({
       return db.reset(
         input?.body?.token || input?.query?.token || "",
         () => Reflect.apply(target, thisArg, args) as Promise<unknown>,
-        (result) => !(result instanceof Response) || result.ok
+        apiSucceeded
       )
     },
   })
-  return { ...instance, handler, api: { ...instance.api, resetPassword } }
+  const signInEmail = new Proxy(instance.api.signInEmail, {
+    apply(target, thisArg, args) {
+      return db.login(
+        () => Reflect.apply(target, thisArg, args) as Promise<unknown>,
+        apiSucceeded
+      )
+    },
+  })
+  return {
+    ...instance,
+    handler,
+    close: () => rateLimitPool.end(),
+    api: { ...instance.api, resetPassword, signInEmail },
+  }
+}
+
+function apiSucceeded(result: unknown): boolean {
+  if (result instanceof Response) return result.ok
+  if (
+    result &&
+    typeof result === "object" &&
+    "status" in result &&
+    typeof result.status === "number"
+  )
+    return result.status < 400
+  if (result && typeof result === "object" && "response" in result)
+    return !isAPIError(result.response)
+  return !isAPIError(result)
 }
 
 export const auth = createPersonaiAuth()
